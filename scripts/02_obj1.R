@@ -38,9 +38,10 @@ summary(b_fit)
 
 # Trace plots
 trace_draws <- as_draws_df(b_fit)
-mcmc_trace(trace_draws)
+plot_trace <- mcmc_trace(trace_draws, pars = vars(starts_with("b_")))
 
 # Summarise fit metrics
+sum_diags <- summarise_draws(trace_draws)
 
 # Overall count recovery
 plot_rec_overall <- pp_check(b_fit, ndraws = 803)
