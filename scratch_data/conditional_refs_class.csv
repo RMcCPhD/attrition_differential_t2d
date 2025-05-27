@@ -1,0 +1,27 @@
+trial_id,ref,note,ref_set
+NCT00676338,ac,2 active comparator arms (based on trttype),biguanide
+NCT01147627,ac,2 active comparator arms (based on trttype),insulin
+NCT03730662,ac,2 active comparator arms (based on trttype),insulin
+NCT03882970,ac,2 active comparator arms (based on trttype),insulin
+NCT04093752,ac,2 active comparator arms (based on trttype),insulin
+NCT00700817,exp,dpp4 vs a glp1 (and sometimes a sglt2 arm),dpp4
+NCT00976937,exp,dpp4 vs a glp1 (and sometimes a sglt2 arm),dpp4
+NCT01098539,exp,dpp4 vs a glp1 (and sometimes a sglt2 arm),dpp4
+NCT01137812,exp,dpp4 vs a glp1 (and sometimes a sglt2 arm),dpp4
+NCT01296412,exp,dpp4 vs a glp1 (and sometimes a sglt2 arm),dpp4
+NCT01422876,exp,dpp4 vs a glp1 (and sometimes a sglt2 arm),dpp4
+NCT01606007,exp,dpp4 vs a glp1 (and sometimes a sglt2 arm),dpp4
+NCT01907854,exp,dpp4 vs a glp1 (and sometimes a sglt2 arm),dpp4
+NCT01930188,exp,dpp4 vs a glp1 (and sometimes a sglt2 arm),dpp4
+NCT02008682,exp,dpp4 vs a glp1 (and sometimes a sglt2 arm),dpp4
+NCT02099110,exp,dpp4 vs a glp1 (and sometimes a sglt2 arm),dpp4
+NCT02229396,exp,sglt2 vs a glp1 (not involving a dpp4 arm),sglt2
+NCT02532855,exp,dpp4 vs a glp1 (and sometimes a sglt2 arm),dpp4
+NCT02607865,exp,dpp4 vs a glp1 (and sometimes a sglt2 arm),dpp4
+NCT02681094,exp,dpp4 vs a glp1 (and sometimes a sglt2 arm),dpp4
+NCT02849080,exp,dpp4 vs a glp1 (and sometimes a sglt2 arm),dpp4
+NCT02863328,exp,sglt2 vs a glp1 (not involving a dpp4 arm),sglt2
+NCT03061214,exp,dpp4 vs a glp1 (and sometimes a sglt2 arm),dpp4
+NCT03115112,exp,dpp4 vs a glp1 (and sometimes a sglt2 arm),dpp4
+NCT03136484,exp,sglt2 vs a glp1 (not involving a dpp4 arm),sglt2
+NCT04196231,exp,sglt2 vs a glp1 (not involving a dpp4 arm),sglt2
