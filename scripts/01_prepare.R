@@ -1,4 +1,5 @@
 
+source("scripts/00_config.R")
 source("scripts/00_packages.R")
 
 a_imp_agg <- read_csv("data/trials_n391_dattr.csv")
@@ -47,6 +48,7 @@ b_agg_clp <- b_agg %>%
 
 # 299 trials
 b_agg_clp %>% count(trial_id, source) %>% count(source)
+b_agg_clp %>% count(class_short)
 
 # Prepare IPD
 b_ipd <- a_imp_ipd %>% 
@@ -65,6 +67,11 @@ b_ipd <- a_imp_ipd %>%
       class_short == "insulin" ~ substr(atc, 1, 4),
       class_short == "placebo" ~ class_short,
       TRUE ~ substr(atc, 1, 5)
+    ),
+    class_short = case_when(
+      class_short == "biguanide" ~ "biguanides",
+      class_short == "agluc" ~ "a_gluc",
+      TRUE ~ class_short
     )
   )
 
@@ -78,6 +85,7 @@ b_ipd_clp <- b_ipd %>%
 
 # 92 trials
 b_ipd_clp %>% count(trial_id, source) %>% count(source)
+b_ipd_clp %>% count(class_short)
 
 # Join datasets
 # Calculate n
