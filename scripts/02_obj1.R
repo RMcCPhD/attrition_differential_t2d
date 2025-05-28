@@ -17,18 +17,18 @@ options(mc.cores = parallel::detectCores())
 # Fit hierarchical logistic regression via brms
 # Random effects for treatment class across trials
 # Commented out after saving model fit
-# b_fit <- brm(
-#   formula = arm_attr | trials(arm_n) ~ class_short + (1 + class_short | trial_id),
-#   data = a_imp_df,
-#   family = binomial(link = "logit"),
-#   chains = 4,
-#   iter = 4000,
-#   warmup = 1000,
-#   cores = 4,
-#   seed = 123,
-#   backend = "rstan",
-#   control = list(adapt_delta = 0.99, max_treedepth = 15)
-# )
+b_fit <- brm(
+  formula = arm_attr | trials(arm_n) ~ class_short + (1 + class_short | trial_id),
+  data = a_imp_df,
+  family = binomial(link = "logit"),
+  chains = 4,
+  iter = 4000,
+  warmup = 1000,
+  cores = 4,
+  seed = 123,
+  backend = "rstan",
+  control = list(adapt_delta = 0.99, max_treedepth = 15)
+)
 
 # Save (to prevent having to rerun each time)
 b_fit <- readRDS("processed_data/brm_fit.rds")
