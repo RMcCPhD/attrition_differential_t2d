@@ -12,61 +12,116 @@ a_imp_df <- readRDS("processed_data/tidy_agg_n391.rds") %>%
 
 # Import IPD model exports (coefficients, variance-covariance)
 a_imp_ipd_res <- read_csv("vivli/res_n92.csv")
-a_imp_ipd_cor <- read_csv("vivli/coef_cor_n92.csv")
+a_imp_vcov <- readRDS("processed_data/vcov_n92.rds")
 
-# Construct v-cov matrix -------------------------------------------------------
+# Get sample sizes
+b_samples <- a_imp_df %>%
+  select(trial_id, class_short, arm_n) %>% 
+  rename(nct_id = trial_id) %>% 
+  filter(nct_id %in% a_imp_ipd_res$nct_id)
 
-# Trial and model-specific variable sets
-b_vars_models <- a_imp_ipd_cor %>% 
-  select(nct_id, modeltype, row, col) %>% 
-  pivot_longer(row:col, values_to = "variable") %>% 
-  distinct(nct_id, modeltype, variable) %>% 
-  group_by(nct_id, modeltype) %>% 
-  reframe(vars = list(unique(variable)), .groups = "drop")
+# Get logistic reg outputs
+b_log <- a_imp_ipd_res %>% 
+  filter(modeltype == "glm") %>% 
+  filter(std.error < 11)
 
-# Build symmetrical and diagonal entries per model and trial
-b_sym <- a_imp_ipd_cor %>% 
-  rename(var1 = row, var2 = col) %>% 
-  bind_rows(a_imp_ipd_cor %>% rename(var1 = col, var2 = row)) %>% 
-  group_by(nct_id, modeltype) %>% 
-  group_split() %>% 
-  map_dfr(function(data_part) {
-    key <- data_part %>% select(nct_id, modeltype) %>% slice(1)
-    vars <- unique(c(data_part$var1, data_part$var2))
-    
-    # Get diagonals
-    diags <- expand.grid(var1 = vars, var2 = vars) %>% 
-      filter(var1 == var2) %>% 
-      mutate(value = 1) %>% 
-      bind_cols(key[rep(1, nrow(.)), ])
-    
-    # Bind diagonals and triangles
-    bind_rows(data_part, diags)
-  })
+# Test for unadjusted models
+b_unadj <- b_log %>% filter(spec == "unadj" & term != "(Intercept)")
 
-# Construct correlation matrices
-b_matrices <- b_sym %>% 
-  group_by(nct_id, modeltype) %>% 
-  nest() %>% 
-  mutate(
-    cor_matrix = map(data, ~ {
-      vars <- union(.x$var1, .x$var2)
-      xtabs(value ~ var1 + var2, data = .x)[vars, vars]
-    })
+b_unadj_vcov <- a_imp_vcov %>% filter(modeltype == "glm_unadj")
+
+# Add placebo ref
+b_add_ref <- b_unadj %>% 
+  bind_rows(
+    b_unadj %>% 
+      group_by(nct_id) %>% 
+      filter(n() == 1) %>% 
+      ungroup() %>% 
+      transmute(
+        nct_id,
+        modeltype,
+        spec,
+        term = "placebo",
+        ref = NA,
+        estimate = NA,
+        std.error = NA,
+        statistic = NA,
+        p.value = NA,
+        lci = NA,
+        uci = NA
+      )
   ) %>% 
-  select(-data)
+  arrange(nct_id) %>% 
+  distinct() %>% 
+  select(nct_id, term, estimate, std.error, ref) %>% 
+  rename(se = std.error)
 
-# Convert to v-cov matrices
-b_vcov <- b_matrices %>% 
+# Add intercept (placebo est/se) where >1 arm
+# Add sample size
+b_int_targets <- b_add_ref %>% 
+  group_by(nct_id) %>% 
+  filter(sum(is.na(estimate)) == 0) %>% 
+  ungroup()
+
+b_int_plc <- b_log %>% 
+  filter(spec == "unadj") %>% 
+  inner_join(b_int_targets %>% select(nct_id) %>% distinct()) %>% 
+  mutate(term = if_else(grepl("Inter", term), "placebo", term)) %>% 
+  filter(term == "placebo") %>% 
+  select(nct_id, term, estimate, std.error, ref) %>% 
+  rename(se = std.error)
+
+b_all_plc <- b_add_ref %>% 
+  full_join(b_int_plc) %>% 
+  arrange(nct_id) %>% 
+  mutate(estimate = if_else(term == "placebo", NA, estimate)) %>% 
+  select(-ref)
+
+b_all_plc %>% group_by(nct_id) %>% filter(n() > 2) %>% View()
+  
+# Test for treatment-only
+b_network <- set_agd_contrast(
+  data = b_all_plc,
+  study = nct_id,
+  trt = term,
+  y = estimate,
+  se = se,
+  trt_ref = "placebo"
+)
+
+# Plot network
+plot(b_network, level = "treatment")
+
+# Meta-regression
+b_mdl <- nma(
+  b_network,
+  trt_effects = "random",
+  prior_trt = normal(0, 100),
+  prior_het = half_normal(5)
+)
+
+# Quick plot of estimates
+b_plot <- as.data.frame(summary(b_mdl))[1:7,] %>% 
   mutate(
-    cov_matrix = pmap(list(nct_id, modeltype, cor_matrix), function(id, type, cor_mat) {
-      se_df <- a_imp_ipd_res %>% filter(nct_id == id, modeltype == modeltype)
-      se_vec <- setNames(se_df$std.error, se_df$term)
-      se_order <- se_vec[rownames(cor_mat)]
-      cov_mat <- outer(se_order, se_order) * cor_mat
-      cov_mat
-    })
-  )
+    parameter = gsub("d\\[", "", parameter),
+    parameter = gsub("\\]", "", parameter)
+  ) %>% 
+  ggplot(aes(x = mean, xmin = `2.5%`, xmax = `97.5%`, y = fct_rev(parameter))) +
+  geom_point(position = position_dodge(width = 0.5)) +
+  geom_linerange(position = position_dodge(width = 0.5)) +
+  geom_vline(xintercept = 0, colour = "red") +
+  geom_vline(xintercept = 0.05, colour = "orange", linetype = "dashed") +
+  geom_vline(xintercept = -0.05, colour = "orange", linetype = "dashed") +
+  theme_bw() +
+  scale_x_continuous(n.breaks = 10) +
+  labs(x = "Mean log-odds (95% credible intervals)", y = "Treatment class")
 
-# Save
-saveRDS(b_vcov, "processed_data/vcov_n92.rds")
+b_plot
+
+ggsave(
+  "output/obj2/plot_nma_log_odds.png",
+  b_plot,
+  width = 8,
+  height = 4,
+  units = "in"
+)
