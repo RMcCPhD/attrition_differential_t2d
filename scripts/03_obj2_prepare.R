@@ -51,7 +51,13 @@ b_matrices <- b_sym %>%
   mutate(
     cor_matrix = map(data, ~ {
       vars <- union(.x$var1, .x$var2)
-      xtabs(value ~ var1 + var2, data = .x)[vars, vars]
+      cor_tbl <- xtabs(value ~ var1 + var2, data = .x)[vars, vars]
+      matrix(
+        as.numeric(cor_tbl),
+        nrow = length(vars),
+        ncol = length(vars),
+        dimnames = list(vars, vars)
+      )
     })
   ) %>% 
   select(-data)

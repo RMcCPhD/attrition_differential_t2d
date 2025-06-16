@@ -5,6 +5,12 @@ source("scripts/00_packages.R")
 # Import prepared aggregate data
 a_imp_df <- readRDS("processed_data/tidy_agg_n391.rds") %>% 
   mutate(
+    class_short = case_match(
+      class_short,
+      "a_gluc" ~ "agluc",
+      "biguanides" ~ "biguanide",
+      .default = class_short
+    ),
     atc = factor(atc, levels = c("placebo", setdiff(unique(atc), "placebo"))),
     class_short = factor(class_short),
     class_short = relevel(class_short, ref = "placebo")
@@ -14,114 +20,126 @@ a_imp_df <- readRDS("processed_data/tidy_agg_n391.rds") %>%
 a_imp_ipd_res <- read_csv("vivli/res_n92.csv")
 a_imp_vcov <- readRDS("processed_data/vcov_n92.rds")
 
-# Get sample sizes
-b_samples <- a_imp_df %>%
-  select(trial_id, class_short, arm_n) %>% 
-  rename(nct_id = trial_id) %>% 
-  filter(nct_id %in% a_imp_ipd_res$nct_id)
+# Unadjusted treatment (test) --------------------------------------------------
 
-# Get logistic reg outputs
-b_log <- a_imp_ipd_res %>% 
-  filter(modeltype == "glm") %>% 
-  filter(std.error < 11)
+# Setup aggregate data
+b_agg_df <- a_imp_df %>% 
+  filter(source != "ipd") %>% 
+  select(trial_id, class_short, atc_short, ref_class:arm_attr) %>% 
+  mutate(
+    atc_short = if_else(class_short == "oad", "A10BX", atc_short)
+  )
 
-# Test for unadjusted models
-b_unadj <- b_log %>% filter(spec == "unadj" & term != "(Intercept)")
+# Setup ipd data
+b_ipd_filter <- a_imp_ipd_res %>% 
+  filter(
+    spec == "unadj",
+    modeltype == "glm"
+  ) %>% 
+  rename(class_short = term) %>% 
+  select(-c(std.error:uci)) %>% 
+  left_join(
+    b_agg_df %>% 
+      select(class_short, atc_short) %>% 
+      distinct()
+  )
 
-b_unadj_vcov <- a_imp_vcov %>% filter(modeltype == "glm_unadj")
-
-# Add placebo ref
-b_add_ref <- b_unadj %>% 
+# Add placebo rows with NA estimate for reference level
+b_ipd_df <- b_ipd_filter %>%
+  filter(!grepl("Inter", class_short)) %>% 
   bind_rows(
-    b_unadj %>% 
+    b_ipd_filter %>% 
       group_by(nct_id) %>% 
-      filter(n() == 1) %>% 
-      ungroup() %>% 
       transmute(
         nct_id,
         modeltype,
         spec,
-        term = "placebo",
-        ref = NA,
-        estimate = NA,
-        std.error = NA,
-        statistic = NA,
-        p.value = NA,
-        lci = NA,
-        uci = NA
+        class_short = "placebo",
+        atc_short = "placebo",
+        ref,
+        estimate = NA
       )
   ) %>% 
   arrange(nct_id) %>% 
-  distinct() %>% 
-  select(nct_id, term, estimate, std.error, ref) %>% 
-  rename(se = std.error)
+  distinct()
 
-# Add intercept (placebo est/se) where >1 arm
-# Add sample size
-b_int_targets <- b_add_ref %>% 
-  group_by(nct_id) %>% 
-  filter(sum(is.na(estimate)) == 0) %>% 
-  ungroup()
-
-b_int_plc <- b_log %>% 
-  filter(spec == "unadj") %>% 
-  inner_join(b_int_targets %>% select(nct_id) %>% distinct()) %>% 
-  mutate(term = if_else(grepl("Inter", term), "placebo", term)) %>% 
-  filter(term == "placebo") %>% 
-  select(nct_id, term, estimate, std.error, ref) %>% 
-  rename(se = std.error)
-
-b_all_plc <- b_add_ref %>% 
-  full_join(b_int_plc) %>% 
-  arrange(nct_id) %>% 
-  mutate(estimate = if_else(term == "placebo", NA, estimate)) %>% 
-  select(-ref)
-
-b_all_plc %>% group_by(nct_id) %>% filter(n() > 2) %>% View()
-  
-# Test for treatment-only
-b_network <- set_agd_contrast(
-  data = b_all_plc,
-  study = nct_id,
-  trt = term,
-  y = estimate,
-  se = se,
-  trt_ref = "placebo"
-)
-
-# Plot network
-plot(b_network, level = "treatment")
-
-# Meta-regression
-b_mdl <- nma(
-  b_network,
-  trt_effects = "random",
-  prior_trt = normal(0, 100),
-  prior_het = half_normal(5)
-)
-
-# Quick plot of estimates
-b_plot <- as.data.frame(summary(b_mdl))[1:7,] %>% 
+# Prepare vcov, setting NA for intercepts
+b_vcov <- a_imp_vcov %>% 
+  filter(modeltype == "glm_unadj") %>% 
   mutate(
-    parameter = gsub("d\\[", "", parameter),
-    parameter = gsub("\\]", "", parameter)
-  ) %>% 
-  ggplot(aes(x = mean, xmin = `2.5%`, xmax = `97.5%`, y = fct_rev(parameter))) +
-  geom_point(position = position_dodge(width = 0.5)) +
-  geom_linerange(position = position_dodge(width = 0.5)) +
-  geom_vline(xintercept = 0, colour = "red") +
-  geom_vline(xintercept = 0.05, colour = "orange", linetype = "dashed") +
-  geom_vline(xintercept = -0.05, colour = "orange", linetype = "dashed") +
-  theme_bw() +
-  scale_x_continuous(n.breaks = 10) +
-  labs(x = "Mean log-odds (95% credible intervals)", y = "Treatment class")
+    cov2 = map(cov_matrix, function(mat) {
+      
+      rownames(mat) <- gsub("Intercept", "placebo", rownames(mat))
+      rownames(mat) <- gsub("\\(|\\)", "", rownames(mat))
+      colnames(mat) <- gsub("Intercept", "placebo", colnames(mat))
+      colnames(mat) <- gsub("\\(|\\)", "", colnames(mat))
+      
+      placebo_cell <- which(rownames(mat) == "placebo")
+      
+      if (length(placebo_cell) > 0) {
+        mat[placebo_cell, ] <- NA
+        mat[, placebo_cell] <- NA
+      }
+      
+      return(mat)
+      
+    })
+  )
 
-b_plot
+b_vcov_ready <- list(b_vcov$cov2)
+b_vcov_ready <- b_vcov_ready[[1]]
+names(b_vcov_ready) <- unique(b_vcov$nct_id)
 
-ggsave(
-  "output/obj2/plot_nma_log_odds.png",
-  b_plot,
-  width = 8,
-  height = 4,
-  units = "in"
+# Keep non-NA cells
+b_vcov_prep <- map2(b_vcov_ready, names(b_vcov_ready), function(mat, id) {
+  
+  est_terms <- b_ipd_df %>% 
+    filter(nct_id == id & !is.na(estimate)) %>% 
+    pull(class_short)
+  
+  matched_terms <- est_terms[est_terms %in% rownames(mat)]
+  
+  out <- mat[matched_terms, matched_terms, drop = FALSE]
+  return(out)
+  
+})
+
+# Setup networks
+c_agg <- set_agd_arm(
+  data = b_agg_df,
+  study = trial_id,
+  trt = class_short,
+  trt_ref = "placebo",
+  r = arm_attr,
+  n = arm_n,
+  trt_class = atc_short
+)
+  
+plot(c_agg)
+  
+c_ipd <- set_agd_regression(
+  data = b_ipd_df,
+  study = nct_id,
+  trt = class_short,
+  trt_ref = "placebo",
+  estimate = estimate,
+  cov = b_vcov_prep,
+  regression = ~ .trt,
+  trt_class = atc_short
+)
+
+plot(c_ipd)
+
+# Combine
+c_cmbn <- combine_network(c_agg, c_ipd)
+plot(c_cmbn)
+
+# Add integration
+d_mdl <- nma(
+  c_cmbn,
+  trt_effects = "random",
+  regression = ~ .trt,
+  class_interactions = "common",
+  prior_intercept = normal(scale = 10),
+  prior_reg = normal(scale = 10), chains = 4, cores = 4
 )
