@@ -2,17 +2,45 @@
 source("scripts/00_config.R")
 source("scripts/00_packages.R")
 
-# Import prepared aggregate data
+# Import and prepare aggregate data
 a_imp_df <- readRDS("processed_data/tidy_agg_n391.rds") %>% 
   mutate(
+    class_short = case_match(
+      class_short,
+      "a_gluc" ~ "agluc",
+      "biguanides" ~ "biguanide",
+      .default = class_short
+    ),
     atc = factor(atc, levels = c("placebo", setdiff(unique(atc), "placebo"))),
     class_short = factor(class_short),
     class_short = relevel(class_short, ref = "placebo")
+  ) %>% 
+  filter(source != "ipd") %>% 
+  select(trial_id, class_short, atc_short, ref_class:arm_attr) %>% 
+  mutate(
+    atc_short = if_else(class_short == "oad", "A10BX", atc_short)
   )
+
+# Save
+saveRDS(a_imp_df, "processed_data/agg_n391.rds")
 
 # Import IPD model exports (coefficients, coefficient correlation)
 a_imp_ipd_res <- read_csv("vivli/res_n92.csv")
 a_imp_ipd_cor <- read_csv("vivli/coef_cor_n92.csv")
+
+# Prepare ipd aggregate data
+b_prep_ipd_res <- a_imp_ipd_res %>% 
+  filter(modeltype == "glm") %>% 
+  select(nct_id, spec:std.error) %>% 
+  rename(class_short = term) %>% 
+  left_join(
+    a_imp_df %>% 
+      select(class_short, atc_short) %>% 
+      distinct()
+  )
+
+# Save
+saveRDS(b_prep_ipd_res, "processed_data/res_n92.rds")
 
 # Construct v-cov matrix -------------------------------------------------------
 
