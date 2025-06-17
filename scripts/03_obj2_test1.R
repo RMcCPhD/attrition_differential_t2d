@@ -143,3 +143,5 @@ d_mdl <- nma(
   prior_intercept = normal(scale = 10),
   prior_reg = normal(scale = 10), chains = 4, cores = 4
 )
+
+summary(d_mdl)
