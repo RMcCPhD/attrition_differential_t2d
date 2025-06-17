@@ -1,4 +1,7 @@
 
+# Testing setup for multinma
+# Unadjusted treatment
+# Combination of aggregated data and ipd outputs
 source("scripts/00_config.R")
 source("scripts/00_packages.R")
 
@@ -133,6 +136,7 @@ plot(c_ipd)
 # Combine
 c_cmbn <- combine_network(c_agg, c_ipd)
 plot(c_cmbn)
+summary(c_cmbn)
 
 # Add integration
 d_mdl <- nma(
@@ -140,8 +144,40 @@ d_mdl <- nma(
   trt_effects = "random",
   regression = ~ .trt,
   class_interactions = "common",
-  prior_intercept = normal(scale = 10),
-  prior_reg = normal(scale = 10), chains = 4, cores = 4
+  prior_intercept = normal(0, 5),
+  prior_trt = normal(0, 2.5),
+  prior_het = half_normal(1),
+  prior_reg = normal(0, 2.5),
+  chains = 4, 
+  cores = 4
 )
 
-summary(d_mdl)
+plot_prior_posterior(d_mdl, prior = c("trt"))
+dic(d_mdl)
+
+# Extract fixed effects
+e_ext <- summary(d_mdl$stanfit, pars = "d")$summary
+
+# Plot
+plot_unadj <- as.data.frame(e_ext) %>% 
+  rownames_to_column(var = "trt_class") %>% 
+  mutate(
+    trt_class = gsub("d\\[|\\]", "", trt_class)
+  ) %>% 
+  ggplot(aes(x = mean, xmin = `2.5%`, xmax = `97.5%`, y = fct_rev(trt_class))) +
+  geom_point(position = position_dodge(width = 0.5)) +
+  geom_linerange(position = position_dodge(width = 0.5)) +
+  geom_vline(xintercept = 0, colour = "red") +
+  geom_vline(xintercept = 0.05, colour = "orange", linetype = "dashed") +
+  geom_vline(xintercept = -0.05, colour = "orange", linetype = "dashed") +
+  theme_bw() +
+  scale_x_continuous(n.breaks = 10) +
+  labs(x = "Mean log-odds (95% credible intervals)", y = "Treatment class")
+
+ggsave(
+  "output/obj2/test_unadj_trt_log_odds.png",
+  plot_unadj,
+  width = 8,
+  height = 4,
+  units = "in"
+)
