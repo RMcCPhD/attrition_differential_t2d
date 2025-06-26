@@ -15,7 +15,7 @@ a_imp_char <- read_csv("data/base_dsp.csv") %>%
       distinct()
   )
 
-# One trial missing - NCT04170998
+# One trial missing - NCT04170998 (not missing, not removing in case I forgot the context)
 a_imp_387 %>% 
   select(trial_id) %>% 
   distinct() %>% 
@@ -122,4 +122,117 @@ c_fixed_nas <- c_join %>%
       arm_lvl == "placebo" ~ arm_lvl,
       TRUE ~ substr(arm_lvl, 1, 5)
     )
+  ) %>% 
+  select(-c(arm_id2:drug_name))
+
+c_fixed_nas %>% reframe(across(everything(), ~ sum(is.na(.))))
+
+# Add treatment classes
+d_imp_atc <- read_csv("created_metadata/atc.csv")
+
+d_class <- c_fixed_nas %>% 
+  rename(atc = arm_lvl) %>% 
+  mutate(
+    class = atc,
+    class = case_match(
+      class,
+      "A10A" ~ "insulin",
+      "A10B" ~ "oad",
+      "A10BA" ~ "biguanides",
+      "A10BB" ~ "sulf",
+      "A10BF" ~ "a_gluc",
+      "A10BG" ~ "thia",
+      "A10BH" ~ "dpp4",
+      "A10BJ" ~ "glp1",
+      "A10BK" ~ "sglt2",
+      "placebo" ~ "placebo"
+    )
   )
+
+# Add events -------------------------------------------------------------------
+
+# Join aggregate and ipd events
+# Tidy atc codes
+e_events <- a_imp_387 %>% 
+  filter(source == "agg") %>%
+  select(trial_id, atc_short, arm_n, arm_attr) %>% 
+  rename(atc = atc_short) %>% 
+  full_join(
+    a_imp_92 %>% 
+      select(nct_id, arm_lvl, n, attr) %>% 
+      rename(
+        trial_id = nct_id,
+        atc = arm_lvl,
+        arm_n = n,
+        arm_attr = attr
+      )
+  ) %>% 
+  mutate(
+    atc = case_when(
+      atc == "placebo" ~ atc,
+      TRUE ~ substr(atc, 1, 5)
+    )
+  )
+
+# Collapse treatment class characteristics for joining events
+# Compute weighted mean age and total number of males per arm
+e_clp <- d_class %>% 
+  group_by(trial_id, atc, class) %>% 
+  mutate(
+    wgt_mean_age = mean_age * n,
+    n_male = case_when(
+      !is.na(n_male) ~ n_male,
+      TRUE ~ n * (pcnt_male / 100)
+    )
+  ) %>% 
+  reframe(
+    n = sum(n),
+    mean_age = sum(wgt_mean_age) / n,
+    n_male = round(sum(n_male))
+  )
+
+# Add pooled standard deviation
+e_clp_add_sd <- e_clp %>% 
+  left_join(
+    d_class %>% 
+      group_by(trial_id, atc, class) %>% 
+      reframe(
+        num = sum((n - 1) * sd_age ^ 2),
+        denom = sum(n) - n(),
+        sd_age = sqrt(num / denom)
+      )
+  ) %>% 
+  select(trial_id:mean_age, sd_age, everything())
+
+# Join events
+# Remove arms with no attrition counts (not in analysis, disconnected arms?)
+f_add_events <- e_clp_add_sd %>% 
+  left_join(
+    e_events %>% 
+      group_by(trial_id, atc) %>% 
+      reframe(
+        arm_n = sum(arm_n),
+        arm_attr = sum(arm_attr)
+      )
+  ) %>% 
+  filter(!is.na(arm_attr)) %>% 
+  select(-c(num, denom, arm_n)) %>% 
+  rename(attr = arm_attr)
+
+# 17 missing mean age
+# 19 missing sd age
+# 15 missing male count
+# Look for these as manual inputs or use na.rm if not obtainable
+f_add_events %>% reframe(across(everything(), ~ sum(is.na(.))))
+
+# Distinguish source
+g_add_source <- f_add_events %>% 
+  mutate(
+    source = case_when(
+      trial_id %in% a_imp_92$nct_id ~ "ipd",
+      TRUE ~ "agg"
+    )
+  )
+
+# Save 
+write_csv(g_add_source, "output/sum/sum_data.csv")
