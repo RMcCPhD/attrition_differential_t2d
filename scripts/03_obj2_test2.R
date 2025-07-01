@@ -13,3 +13,6 @@ a_imp_df <- readRDS("processed_data/tidy_agg_n391.rds") %>%
 # Import IPD model exports (coefficients, variance-covariance)
 a_imp_ipd_res <- read_csv("vivli/res_n92.csv")
 a_imp_vcov <- readRDS("processed_data/vcov_n92.rds")
+
+# Age- and sex-treatment interactions ------------------------------------------
+

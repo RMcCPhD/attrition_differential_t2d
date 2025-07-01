@@ -2,7 +2,7 @@
 
 ############# SLURM SETTINGS #############
 #SBATCH --account=none
-#SBATCH --job-name=install_multinma
+#SBATCH --job-name=run_dattr
 #SBATCH --output=%x-%j.out
 #SBATCH --error=%x-%j.err
 #SBATCH --partition=nodes
@@ -19,4 +19,4 @@ module load apps/R/4.4.1/gcc-8.5.0+openblas-0.3.28
 export LD_LIBRARY_PATH=/users/2850244m/Documents/install_multinma/condaenv/lib:${LD_LIBRARY_PATH}
 
 ############# MY CODE #############
-Rscript install_multinma.R
+Rscript 01_obj2_test2.R
