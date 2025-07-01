@@ -1,0 +1,5 @@
+export LD_LIBRARY_PATH=/users/2850244m/Documents/install_multinma/condaenv/lib:$LD_LIBRARY_PATH
+echo $LD_LIBRARY_PATH
+
+R
+install.packages("gsl", repos = "https://cloud.r-project.org", lib = "/users/2850244m/gridware/share/R/4.4.1")

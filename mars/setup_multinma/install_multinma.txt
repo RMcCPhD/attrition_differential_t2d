@@ -1,0 +1,5 @@
+############# LOADING MODULES (optional) #############
+module load apps/R
+
+############# MY CODE #############
+Rscript install_multinma.R
