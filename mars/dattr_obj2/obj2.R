@@ -1,11 +1,11 @@
 
-source("scripts/00_config.R")
-source("scripts/00_packages.R")
+source("00_config.R")
+source("00_packages.R")
 
 # Import aggregate data and prepared ipd outputs
-a_imp_agg <- readRDS("processed_data/agg_n387.rds")
-a_imp_ipd_res <- readRDS("processed_data/res_n92.rds")
-a_imp_vcov <- readRDS("processed_data/vcov_n92.rds")
+a_imp_agg <- readRDS("data/agg_n387.rds")
+a_imp_ipd_res <- readRDS("data/res_n92.rds")
+a_imp_vcov <- readRDS("data/vcov_n92.rds")
 
 # Remove intercepts
 # Add placebo (ref) rows to ipd results
@@ -143,11 +143,7 @@ b_cor_mat <- b_bl_cor %>%
 
 # Aggregate arm-level data - counts, binomially distributed
 c_agg <- set_agd_arm(
-  data = a_imp_agg %>% 
-    filter(source != "ipd") %>% 
-    mutate(
-      age10 = NA_real_
-    ),
+  data = a_imp_agg %>% filter(source != "ipd"),
   study = trial_id,
   trt = class_short,
   trt_ref = "placebo",
@@ -156,7 +152,7 @@ c_agg <- set_agd_arm(
   trt_class = atc_short
 )
 
-# plot(c_agg)
+plot(c_agg)
 
 # IPD coefficients and variance - log-odds, multivariate normal
 c_ipd <- set_agd_regression(
@@ -170,12 +166,12 @@ c_ipd <- set_agd_regression(
   trt_class = atc_short
 )
 
-# plot(c_ipd)
+plot(c_ipd)
 
 # Combine
 c_cmbn <- combine_network(c_agg, c_ipd)
-# plot(c_cmbn)
-# summary(c_cmbn)
+plot(c_cmbn)
+summary(c_cmbn)
 
 # Simulate pseudo IPD from aggregate age and sex to get correlation
 a_imp_agg %>% 
@@ -190,17 +186,7 @@ mean(a_imp_agg$sex) # 0.45
 c_pseudo <- data.frame(
   age10 = rnorm(10000, mean = 5.73, sd = 0.43),
   sex = rbinom(10000, size = 1, prob = 0.45)
-  ) %>% 
-  reframe(
-    age_mean = mean(age10),
-    age_sd = sd(age10),
-    prob_sex = mean(sex)
-  )
-
-c_pseudo %>%
-  reframe(
-    across(age10:sex, ~ mean(.))
-  )
+)
 
 c_pseudo_cor <- cor(c_pseudo)
 
@@ -213,14 +199,11 @@ c_integ <- add_integration(
   n_int = 64
 )
 
-plot(c_integ)
-
 # Fit model --------------------------------------------------------------------
 
-mdl <- nma(
-  c_integ,
+d_mdl <- nma(
+  c_cmbn,
   trt_effects = "random",
-  link = "logit",
   regression = ~ .trt * (age10 + sex),
   class_interactions = "common",
   prior_intercept = normal(0, 5),
@@ -230,4 +213,34 @@ mdl <- nma(
   chains = 4, 
   cores = 4,
   control = list(max_treedepth = 15)
+)
+
+plot_prior_posterior(d_mdl, prior = c("trt"))
+dic(d_mdl)
+
+# Extract fixed effects
+e_ext <- summary(d_mdl$stanfit, pars = "d")$summary
+
+# Plot
+plot_int <- as.data.frame(e_ext) %>% 
+  rownames_to_column(var = "trt_class") %>% 
+  mutate(
+    trt_class = gsub("d\\[|\\]", "", trt_class)
+  ) %>% 
+  ggplot(aes(x = mean, xmin = `2.5%`, xmax = `97.5%`, y = fct_rev(trt_class))) +
+  geom_point(position = position_dodge(width = 0.5)) +
+  geom_linerange(position = position_dodge(width = 0.5)) +
+  geom_vline(xintercept = 0, colour = "red") +
+  geom_vline(xintercept = 0.05, colour = "orange", linetype = "dashed") +
+  geom_vline(xintercept = -0.05, colour = "orange", linetype = "dashed") +
+  theme_bw() +
+  scale_x_continuous(n.breaks = 10) +
+  labs(x = "Mean log-odds (95% credible intervals)", y = "Treatment class")
+
+ggsave(
+  "log_odds.png",
+  plot_int,
+  width = 8,
+  height = 4,
+  units = "in"
 )

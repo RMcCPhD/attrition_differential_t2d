@@ -4,7 +4,6 @@ source("scripts/00_packages.R")
 
 # Import and prepare aggregate data
 a_imp_df <- readRDS("processed_data/tidy_agg_n386_with_bl.rds") %>% 
-  filter(source != "ipd") %>% 
   mutate(
     class_short = case_match(
       class_short,
@@ -17,7 +16,11 @@ a_imp_df <- readRDS("processed_data/tidy_agg_n386_with_bl.rds") %>%
     class_short = relevel(class_short, ref = "placebo")
   ) %>% 
   mutate(
-    atc_short = if_else(class_short == "oad", "A10BX", atc_short)
+    atc_short = if_else(class_short == "oad", "A10BX", atc_short),
+    male_prop = 1 - male_prop
+  ) %>% 
+  rename(
+    sex = male_prop
   )
 
 # Save (295 agg, 92 ipd = 387 total)

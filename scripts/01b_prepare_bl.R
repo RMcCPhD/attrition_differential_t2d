@@ -53,12 +53,19 @@ b_join_bl <- b_n %>%
 b_join_bl %>% count(trial_id)
 b_join_bl %>% reframe(across(everything(), ~ sum(is.na(.))))
 
+# Scale age to age10
+b_scale <- b_join_bl %>% 
+  mutate(
+    age_mean = age_mean / 10,
+    age_sd = age_sd / 10
+  )
+
 # Add atc class
 # Collapse by treatment group
 # Weighted average for male_prop and age_mean
 # Pooled standard deviation for age_sd
 b_add_class <- read_csv("created_metadata/arm_id_trt.csv") %>%
-  left_join(b_join_bl) %>% 
+  left_join(b_scale) %>% 
   rename(class_short = class) %>% 
   group_by(trial_id, class_short) %>% 
   reframe(
