@@ -149,6 +149,12 @@ d_class <- c_fixed_nas %>%
     )
   )
 
+# Save arm lookup (used here and attrisk)
+write_csv(
+  d_class %>% select(trial_id:arm_id, atc, class),
+  "created_metadata/arm_id_trt.csv"
+)
+
 # Add events -------------------------------------------------------------------
 
 # Join aggregate and ipd events
