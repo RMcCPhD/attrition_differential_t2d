@@ -3,7 +3,8 @@ source("scripts/00_config.R")
 source("scripts/00_packages.R")
 
 # Import and prepare aggregate data
-a_imp_df <- readRDS("processed_data/tidy_agg_n391.rds") %>% 
+a_imp_df <- readRDS("processed_data/tidy_agg_n386_with_bl.rds") %>% 
+  filter(source != "ipd") %>% 
   mutate(
     class_short = case_match(
       class_short,
@@ -15,14 +16,12 @@ a_imp_df <- readRDS("processed_data/tidy_agg_n391.rds") %>%
     class_short = factor(class_short),
     class_short = relevel(class_short, ref = "placebo")
   ) %>% 
-  filter(source != "ipd") %>% 
-  select(trial_id, class_short, atc_short, ref_class:arm_attr) %>% 
   mutate(
     atc_short = if_else(class_short == "oad", "A10BX", atc_short)
   )
 
-# Save
-saveRDS(a_imp_df, "processed_data/agg_n391.rds")
+# Save (295 agg, 92 ipd = 387 total)
+saveRDS(a_imp_df, "processed_data/agg_n387.rds")
 
 # Import IPD model exports (coefficients, coefficient correlation)
 a_imp_ipd_res <- read_csv("vivli/res_n92.csv")
@@ -30,7 +29,7 @@ a_imp_ipd_cor <- read_csv("vivli/coef_cor_n92.csv")
 
 # Prepare ipd aggregate data
 b_prep_ipd_res <- a_imp_ipd_res %>% 
-  filter(modeltype == "glm") %>% 
+  filter(modeltype == "glm" & spec == "int" & std.error < 11) %>% 
   select(nct_id, spec:std.error) %>% 
   rename(class_short = term) %>% 
   left_join(
@@ -46,6 +45,11 @@ saveRDS(b_prep_ipd_res, "processed_data/res_n92.rds")
 
 # Trial and model-specific variable sets
 b_vars_models <- a_imp_ipd_cor %>% 
+  filter(modeltype == "glm_int") %>% 
+  inner_join(
+    b_prep_ipd_res %>% 
+      select(nct_id, row = class_short)
+  ) %>% 
   select(nct_id, modeltype, row, col) %>% 
   pivot_longer(row:col, values_to = "variable") %>% 
   distinct(nct_id, modeltype, variable) %>% 

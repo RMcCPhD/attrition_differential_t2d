@@ -87,6 +87,4 @@ d_values <- complete(d_imp, 1) %>% as_tibble()
 d_values %>% reframe(across(everything(), ~ sum(is.na(.))))
 
 # Save
-saveRDS(d_imp, "processed_data/tidy_agg_n386_with_bl.rds")
-
-
+saveRDS(d_values, "processed_data/tidy_agg_n386_with_bl.rds")

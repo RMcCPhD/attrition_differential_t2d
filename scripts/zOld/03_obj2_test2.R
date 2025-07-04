@@ -3,7 +3,7 @@ source("scripts/00_config.R")
 source("scripts/00_packages.R")
 
 # Import prepared aggregate data
-a_imp_df <- readRDS("processed_data/tidy_agg_n391.rds") %>% 
+a_imp_df <- readRDS("processed_data/tidy_agg_n386_with_bl.rds") %>% 
   mutate(
     atc = factor(atc, levels = c("placebo", setdiff(unique(atc), "placebo"))),
     class_short = factor(class_short),
