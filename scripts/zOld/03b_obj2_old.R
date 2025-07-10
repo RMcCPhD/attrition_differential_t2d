@@ -1,11 +1,11 @@
 
-source("00_config.R")
-source("00_packages.R")
+source("scripts/00_config.R")
+source("scripts/00_packages.R")
 
 # Import aggregate data and prepared ipd outputs
-a_imp_agg <- readRDS("data/agg_n387.rds")
-a_imp_ipd_res <- readRDS("data/res_n92.rds")
-a_imp_vcov <- readRDS("data/vcov_n92.rds")
+a_imp_agg <- readRDS("processed_data/agg_n387.rds")
+a_imp_ipd_res <- readRDS("processed_data/res_n92.rds")
+a_imp_vcov <- readRDS("processed_data/vcov_n92.rds")
 
 # Remove intercepts
 # Add placebo (ref) rows to ipd results
@@ -88,7 +88,7 @@ b_vcov <- a_imp_vcov %>%
     })
   )
 
-b_vcov_ready <- list(b_vcov$cov2)
+c <- list(b_vcov$cov2)
 b_vcov_ready <- b_vcov_ready[[1]]
 names(b_vcov_ready) <- unique(b_vcov$nct_id)
 
@@ -143,7 +143,9 @@ b_cor_mat <- b_bl_cor %>%
 
 # Aggregate arm-level data - counts, binomially distributed
 c_agg <- set_agd_arm(
-  data = a_imp_agg %>% filter(source != "ipd"),
+  data = a_imp_agg %>% 
+    filter(source != "ipd") %>% 
+    rename(age10 = age_mean),
   study = trial_id,
   trt = class_short,
   trt_ref = "placebo",
@@ -152,7 +154,7 @@ c_agg <- set_agd_arm(
   trt_class = atc_short
 )
 
-plot(c_agg)
+# plot(c_agg)
 
 # IPD coefficients and variance - log-odds, multivariate normal
 c_ipd <- set_agd_regression(
@@ -166,81 +168,63 @@ c_ipd <- set_agd_regression(
   trt_class = atc_short
 )
 
-plot(c_ipd)
+# plot(c_ipd)
 
 # Combine
 c_cmbn <- combine_network(c_agg, c_ipd)
-plot(c_cmbn)
-summary(c_cmbn)
+# plot(c_cmbn)
+# summary(c_cmbn)
 
-# Simulate pseudo IPD from aggregate age and sex to get correlation
-a_imp_agg %>% 
+# Simulate pseudo IPD from aggregate age and sex
+c_sum <- a_imp_agg %>% 
   filter(source != "ipd") %>% 
   reframe(
     mean = mean(age_mean), # 5.73
-    sd = sd(age_mean) # 0.43
+    sd = sd(age_mean), # 0.43
+    sex = mean(sex)
   )
 
-mean(a_imp_agg$sex) # 0.45
-
 c_pseudo <- data.frame(
-  age10 = rnorm(10000, mean = 5.73, sd = 0.43),
-  sex = rbinom(10000, size = 1, prob = 0.45)
+  age10 = rnorm(10000, mean = c_sum$mean, sd = c_sum$sd),
+  sex = rbinom(10000, size = 1, prob = c_sum$sex)
 )
 
+c_pseudo_sum <- c_pseudo %>% 
+  reframe(
+    age_mean = mean(age10),
+    age_sd = sd(age10),
+    sex_prb = mean(sex)
+  )
+
+# Correlation matrix
 c_pseudo_cor <- cor(c_pseudo)
 
 # Add integration
 c_integ <- add_integration(
   c_cmbn,
-  age10 = distr(qnorm, mean = age_mean, sd = age_sd),
-  sex = distr(qbern, prob = sex),
+  age10 = distr(qnorm, mean = c_pseudo_sum$age_mean, sd = c_pseudo_sum$age_sd),
+  sex = distr(qbinom, size = 1, prob = c_pseudo_sum$sex_prb),
   cor = c_pseudo_cor,
   n_int = 64
 )
 
+plot(c_integ)
+
+c_integ$agd_arm # ok
+c_integ$agd_regression # ok
+c_integ$agd_contrast # 0x0
+c_integ$ipd # 0x0
+
 # Fit model --------------------------------------------------------------------
 
-d_mdl <- nma(
-  c_cmbn,
-  trt_effects = "random",
+# With default priors
+mdl <- nma(
+  c_integ,
+  trt_effects = "fixed",
+  link = "logit",
   regression = ~ .trt * (age10 + sex),
   class_interactions = "common",
-  prior_intercept = normal(0, 5),
-  prior_trt = normal(0, 2.5),
-  prior_het = half_normal(1),
-  prior_reg = normal(0, 2.5),
   chains = 4, 
   cores = 4,
   control = list(max_treedepth = 15)
-)
-
-plot_prior_posterior(d_mdl, prior = c("trt"))
-dic(d_mdl)
-
-# Extract fixed effects
-e_ext <- summary(d_mdl$stanfit, pars = "d")$summary
-
-# Plot
-plot_int <- as.data.frame(e_ext) %>% 
-  rownames_to_column(var = "trt_class") %>% 
-  mutate(
-    trt_class = gsub("d\\[|\\]", "", trt_class)
-  ) %>% 
-  ggplot(aes(x = mean, xmin = `2.5%`, xmax = `97.5%`, y = fct_rev(trt_class))) +
-  geom_point(position = position_dodge(width = 0.5)) +
-  geom_linerange(position = position_dodge(width = 0.5)) +
-  geom_vline(xintercept = 0, colour = "red") +
-  geom_vline(xintercept = 0.05, colour = "orange", linetype = "dashed") +
-  geom_vline(xintercept = -0.05, colour = "orange", linetype = "dashed") +
-  theme_bw() +
-  scale_x_continuous(n.breaks = 10) +
-  labs(x = "Mean log-odds (95% credible intervals)", y = "Treatment class")
-
-ggsave(
-  "log_odds.png",
-  plot_int,
-  width = 8,
-  height = 4,
-  units = "in"
 )

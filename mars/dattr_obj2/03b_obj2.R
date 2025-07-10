@@ -1,10 +1,10 @@
 
-source("scripts/00_config.R")
-source("scripts/00_packages.R")
+source("00_config.R")
+source("00_packages.R")
 
 # Import aggregate data and prepared ipd outputs
-a_imp_ipd_res <- readRDS("processed_data/res_n92.rds")
-a_imp_vcov <- readRDS("processed_data/vcov_n92.rds")
+a_imp_ipd_res <- readRDS("data/res_n92.rds")
+a_imp_vcov <- readRDS("data/vcov_n92.rds")
 
 # Prepare interaction results
 b_prep_res <- a_imp_ipd_res %>% 
@@ -86,19 +86,13 @@ plot(c_network)
 # With default priors
 mdl <- nma(
   c_network,
-  trt_effects = "random",
+  trt_effects = "fixed",
   link = "identity",
   regression = ~ .trt * (age10 + sex),
   class_interactions = "common",
-  prior_intercept = normal(scale = 1),
-  prior_trt = normal(scale = 1),
-  prior_reg = normal(scale = 1),
-  seed = 123,
   chains = 4, 
   cores = 4,
-  warmup = 1000,
-  iter = 4000,
-  control = list(adapt_delta = 0.999, max_treedepth = 15)
+  control = list(max_treedepth = 15)
 )
 
 saveRDS(mdl, "inter_fit.rds")
