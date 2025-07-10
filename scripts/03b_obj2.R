@@ -73,12 +73,12 @@ b_vcov_prep <- map2(b_vcov_ready, names(b_vcov_ready), function(mat, id) {
 c_network <- set_agd_regression(
   data = b_add_covs,
   study = nct_id,
-  trt = class_short,
+  trt = atc_short,
   trt_ref = "placebo",
   estimate = estimate,
   cov = b_vcov_prep,
   regression = ~ .trt * (age10 + sex),
-  trt_class = atc_short
+  trt_class = class_short
 )
 
 plot(c_network)
@@ -86,13 +86,13 @@ plot(c_network)
 # With default priors
 mdl <- nma(
   c_network,
-  trt_effects = "random",
+  trt_effects = "fixed",
   link = "identity",
   regression = ~ .trt * (age10 + sex),
   class_interactions = "common",
-  prior_intercept = normal(scale = 1),
-  prior_trt = normal(scale = 1),
-  prior_reg = normal(scale = 1),
+  prior_intercept = normal(scale = 10),
+  prior_trt = normal(scale = 10),
+  prior_reg = normal(scale = 10),
   seed = 123,
   chains = 4, 
   cores = 4,
