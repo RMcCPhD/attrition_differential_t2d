@@ -30,18 +30,18 @@ b_sum_inter <- b_sum %>%
 
 # Plot log-odds
 plot_log <- b_sum_inter %>% 
-  filter(!is.na(class)) %>% 
-  ggplot(aes(x = mean, y = term)) +
-  geom_point(position = position_dodge(width = 0.5)) +
-  # ggplot(aes(x = mean, xmin = `2.5%`, xmax = `97.5%`, y = term)) +
+  # filter(!is.na(class)) %>% 
+  # ggplot(aes(x = mean, y = term)) +
   # geom_point(position = position_dodge(width = 0.5)) +
-  # geom_linerange(position = position_dodge(width = 0.5)) +
-  # geom_vline(xintercept = 0, colour = "red") +
-  # geom_vline(xintercept = 0.05, colour = "orange", linetype = "dashed") +
-  # geom_vline(xintercept = -0.05, colour = "orange", linetype = "dashed") +
+  ggplot(aes(x = mean, xmin = `2.5%`, xmax = `97.5%`, y = term)) +
+  geom_point(position = position_dodge(width = 0.5)) +
+  geom_linerange(position = position_dodge(width = 0.5)) +
+  geom_vline(xintercept = 0, colour = "red") +
+  geom_vline(xintercept = 0.05, colour = "orange", linetype = "dashed") +
+  geom_vline(xintercept = -0.05, colour = "orange", linetype = "dashed") +
   facet_wrap(~class, scales = "free") +
   theme_bw() +
-  # scale_x_continuous(n.breaks = 10) +
+  scale_x_continuous(n.breaks = 10) +
   labs(x = "Mean log-odds (95% credible intervals)", y = NULL)
 
 plot_log
