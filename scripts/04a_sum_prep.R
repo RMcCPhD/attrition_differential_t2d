@@ -211,7 +211,7 @@ e_clp_add_sd <- e_clp %>%
   select(trial_id:mean_age, sd_age, everything())
 
 # Join events
-# Remove arms with no attrition counts (not in analysis, disconnected arms?)
+# Remove arms with no attrition counts
 f_add_events <- e_clp_add_sd %>% 
   left_join(
     e_events %>% 
@@ -221,7 +221,6 @@ f_add_events <- e_clp_add_sd %>%
         arm_attr = sum(arm_attr)
       )
   ) %>% 
-  filter(!is.na(arm_attr)) %>% 
   select(-c(num, denom, arm_n)) %>% 
   rename(attr = arm_attr)
 
