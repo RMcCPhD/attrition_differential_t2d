@@ -193,7 +193,7 @@ e_clp <- d_class %>%
   ) %>% 
   reframe(
     n = sum(n),
-    mean_age = sum(wgt_mean_age) / n,
+    mean_a %>% ge = sum(wgt_mean_age) / n,
     n_male = round(sum(n_male))
   )
 
