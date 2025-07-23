@@ -1,30 +1,14 @@
 
-source("scripts/00_config.R")
+# This script prepares the model results exported from Vivli
+# Model point estimates for interaction models are extracted
+# VCOV constructed from correlation data
+
 source("scripts/00_packages.R")
+source("scripts/00_config.R")
+source("scripts/00_functions.R")
 
-# Import and prepare aggregate data
-a_imp_df <- readRDS("processed_data/tidy_agg_n386_with_bl.rds") %>% 
-  mutate(
-    class_short = case_match(
-      class_short,
-      "a_gluc" ~ "agluc",
-      "biguanides" ~ "biguanide",
-      .default = class_short
-    ),
-    atc = factor(atc, levels = c("placebo", setdiff(unique(atc), "placebo"))),
-    class_short = factor(class_short),
-    class_short = relevel(class_short, ref = "placebo")
-  ) %>% 
-  mutate(
-    atc_short = if_else(class_short == "oad", "A10BX", atc_short),
-    male_prop = 1 - male_prop
-  ) %>% 
-  rename(
-    sex = male_prop
-  )
-
-# Save (295 agg, 92 ipd = 387 total)
-saveRDS(a_imp_df, "processed_data/agg_n387.rds")
+# Import prepared aggregate data
+a_imp_df <- readRDS("processed_data/tidied_agg.rds")
 
 # Import IPD model exports (coefficients, coefficient correlation)
 a_imp_ipd_res <- read_csv("vivli/res_n92.csv")
@@ -34,32 +18,27 @@ a_imp_ipd_cor <- read_csv("vivli/coef_cor_n92.csv")
 b_prep_ipd_res <- a_imp_ipd_res %>% 
   filter(modeltype == "glm" & spec == "int" & std.error < 11) %>% 
   select(nct_id, spec:std.error) %>% 
-  rename(class_short = term) %>% 
-  left_join(
-    a_imp_df %>% 
-      select(class_short, atc_short) %>% 
-      distinct()
-  )
+  rename(class = term) %>% 
+  left_join(a_imp_df %>% select(class, atc) %>% distinct())
 
 # Save
 saveRDS(b_prep_ipd_res, "processed_data/res_n92.rds")
 
-# Construct v-cov matrix -------------------------------------------------------
+# Construct VCOV matrices-------------------------------------------------------
 
-# Trial and model-specific variable sets
+# Get logistic interaction model set
+# Pivot and nest correlations by trial
+# Add variable names as a list per nest
 b_vars_models <- a_imp_ipd_cor %>% 
   filter(modeltype == "glm_int") %>% 
-  inner_join(
-    b_prep_ipd_res %>% 
-      select(nct_id, row = class_short)
-  ) %>% 
+  inner_join(b_prep_ipd_res %>% select(nct_id, row = class)) %>% 
   select(nct_id, modeltype, row, col) %>% 
   pivot_longer(row:col, values_to = "variable") %>% 
   distinct(nct_id, modeltype, variable) %>% 
   group_by(nct_id, modeltype) %>% 
-  reframe(vars = list(unique(variable)), .groups = "drop")
+  reframe(vars = list(unique(variable)))
 
-# Build symmetrical and diagonal entries per model and trial
+# Add triangles and diagonals for each trial to create symmetrical matrices
 b_sym <- a_imp_ipd_cor %>% 
   rename(var1 = row, var2 = col) %>% 
   bind_rows(a_imp_ipd_cor %>% rename(var1 = col, var2 = row)) %>% 
@@ -97,7 +76,7 @@ b_matrices <- b_sym %>%
   ) %>% 
   select(-data)
 
-# Convert to v-cov matrices
+# Convert to diagonals and triangles to variance and covariance
 b_vcov <- b_matrices %>% 
   mutate(
     cov_matrix = pmap(list(nct_id, modeltype, cor_matrix), function(id, type, cor_mat) {

@@ -1,6 +1,12 @@
 
+# This script is run within a high performance computing environment
+# The slurm file used to run the script has the same file name
+# Sets up the interactions networks and fits the network meta-analysis
+# Common interactions and fixed treatment effects assumed across trials
+
 source("scripts/00_packages.R")
 source("scripts/00_config.R")
+source("scripts/00_functions.R")
 
 # Import aggregate data and prepared ipd outputs
 a_imp_ipd_res <- readRDS("processed_data/res_n92.rds")
@@ -14,23 +20,23 @@ b_prep_res <- a_imp_ipd_res %>%
       group_by(nct_id) %>% 
       transmute(
         nct_id,
-        class_short = "placebo",
-        atc_short = "placebo",
+        class = "placebo",
+        atc = "placebo",
         estimate = NA
       )
   ) %>% 
   mutate(
-    int_terms = class_short,
-    class_short = case_when(
-      grepl("age10|sex|\\:", class_short) ~ NA,
-      class_short == "(Intercept)" ~ NA,
-      TRUE ~ class_short
+    int_terms = class,
+    class = case_when(
+      grepl("age10|sex|\\:", class) ~ NA,
+      class == "(Intercept)" ~ NA,
+      TRUE ~ class
     ),
     age10 = NA,
     sex = NA
   ) %>% 
   arrange(nct_id) %>% 
-  select(estimate, class_short, sex, age10, everything()) %>% 
+  select(estimate, class, sex, age10, everything()) %>% 
   distinct()
 
 # Construct nma dataset - identify interpretations
@@ -39,8 +45,8 @@ b_prep_res <- a_imp_ipd_res %>%
 # Interactions of age and sex on treatment effect 
 b_add_constr <- b_prep_res %>% 
   mutate(
-    sex = if_else(class_short == "placebo", FALSE, sex),
-    age10 = if_else(class_short == "placebo", 0, age10),
+    sex = if_else(class == "placebo", FALSE, sex),
+    age10 = if_else(class == "placebo", 0, age10),
     sex = case_when(
       int_terms == "sex" | grepl("\\:sex", int_terms) ~ TRUE,
       TRUE ~ sex
@@ -50,10 +56,10 @@ b_add_constr <- b_prep_res %>%
       TRUE ~ age10
     )
   ) %>% 
-  rename(trt = atc_short) %>% 
-  select(estimate, trt, sex, age10, nct_id, class_short, int_terms)
+  rename(trt = atc) %>% 
+  select(estimate, trt, sex, age10, nct_id, class, int_terms)
 
-# Add treatment and class_short to interaction terms
+# Add treatment and class to interaction terms
 b_add_trt <- b_add_constr %>% 
   group_by(nct_id) %>% 
   mutate(
@@ -67,15 +73,15 @@ b_add_trt <- b_add_constr %>%
       is.na(trt) & grepl("sglt2\\:", int_terms) ~ "A10BK",
       TRUE ~ trt
     ),
-    class_short = case_when(
-      is.na(class_short) & grepl("biguanide\\:", int_terms) ~ "biguanide",
-      is.na(class_short) & grepl("sulf\\:", int_terms) ~ "sulf",
-      is.na(class_short) & grepl("agluc\\:", int_terms) ~ "agluc",
-      is.na(class_short) & grepl("thia\\:", int_terms) ~ "thia",
-      is.na(class_short) & grepl("dpp4\\:", int_terms) ~ "dpp4",
-      is.na(class_short) & grepl("glp1\\:", int_terms) ~ "glp1",
-      is.na(class_short) & grepl("sglt2\\:", int_terms) ~ "sglt2",
-      TRUE ~ class_short
+    class = case_when(
+      is.na(class) & grepl("biguanide\\:", int_terms) ~ "biguanide",
+      is.na(class) & grepl("sulf\\:", int_terms) ~ "sulf",
+      is.na(class) & grepl("agluc\\:", int_terms) ~ "agluc",
+      is.na(class) & grepl("thia\\:", int_terms) ~ "thia",
+      is.na(class) & grepl("dpp4\\:", int_terms) ~ "dpp4",
+      is.na(class) & grepl("glp1\\:", int_terms) ~ "glp1",
+      is.na(class) & grepl("sglt2\\:", int_terms) ~ "sglt2",
+      TRUE ~ class
     )
   )
 
@@ -100,14 +106,14 @@ b_vcov_prep <- map2(b_vcov_ready, names(b_vcov_ready), function(mat, id) {
 })
 
 c_network <- set_agd_regression(
-  data = b_add_constr,
+  data = b_add_trt,
   study = nct_id,
   trt = trt,
   estimate = estimate,
   cov = b_vcov_prep,
   regression = ~ .trt * (age10 + sex),
   trt_ref = "placebo",
-  trt_class = class_short
+  trt_class = class
 )
 
 plot(c_network)

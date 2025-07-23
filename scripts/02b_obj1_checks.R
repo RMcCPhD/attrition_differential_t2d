@@ -1,6 +1,10 @@
 
-source("scripts/00_config.R")
+# Objective 1 model checks (convergence, ess, predictive check)
+# Plotting pooled odds of attrition versus placebo
+
 source("scripts/00_packages.R")
+source("scripts/00_config.R")
+source("scripts/00_functions.R")
 
 # Import fitted model
 a_fit <- readRDS("output/obj1/brm_fit.rds")
@@ -60,8 +64,6 @@ plot_log <- a_draws_split %>%
   geom_point(position = position_dodge(width = 0.5)) +
   geom_linerange(position = position_dodge(width = 0.5)) +
   geom_vline(xintercept = 0, colour = "red") +
-  geom_vline(xintercept = 0.05, colour = "orange", linetype = "dashed") +
-  geom_vline(xintercept = -0.05, colour = "orange", linetype = "dashed") +
   theme_bw() +
   scale_x_continuous(n.breaks = 10) +
   labs(x = "Mean log-odds (95% credible intervals)", y = "Treatment class")

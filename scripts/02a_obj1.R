@@ -1,6 +1,9 @@
 
 # This script is run within a high performance computing environment
-# The associated slurm file used to run the script is has the same file name
+# The slurm file used to run the script has the same file name
+# Fits a hierarchical logistic regression model for main effects
+# Random effects for treatment, placebo as global reference
+
 source("scripts/00_packages.R")
 source("scripts/00_config.R")
 source("scripts/00_functions.R")
