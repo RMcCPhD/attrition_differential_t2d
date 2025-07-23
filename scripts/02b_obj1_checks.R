@@ -3,12 +3,14 @@ source("scripts/00_config.R")
 source("scripts/00_packages.R")
 
 # Import fitted model
-a_fit <- readRDS("processed_data/brm_fit.rds")
-a_draws <- as_draws_df(a_fit)
-a_draws_sum <- summarise_draws(a_draws)
+a_fit <- readRDS("output/obj1/brm_fit.rds")
 
 # Model summary
 summary(a_fit)
+
+# Extract posterior draws and summarise
+a_draws <- as_draws_df(a_fit)
+a_draws_sum <- summarise_draws(a_draws)
 
 # Convergence summary
 a_draws_cnvg <- a_draws_sum %>% 
@@ -22,48 +24,27 @@ a_draws_split <- a_draws %>%
   pivot_longer(everything(), names_to = "class", values_to = "draw") %>% 
   group_by(class) %>% 
   reframe(
+    mean_log = mean(draw),
     median_log = median(draw),
     upper_log = quantile(draw, 0.975),
     lower_log = quantile(draw, 0.025),
-    mean_or = median(exp(draw)),
+    mean_or = mean(exp(draw)),
+    median_or = median(exp(draw)),
     upper_or = quantile(exp(draw), 0.975),
     lower_or = quantile(exp(draw), 0.025)
   ) %>% 
   filter(grepl("^b_", class)) %>% 
-  mutate(class = gsub("b_class_short", "", class))
+  mutate(class = gsub("b_class", "", class))
   
 # Save summaries
 write_csv(a_draws_cnvg, "output/obj1/sum_cnvg.csv")
 write_csv(a_draws_split, "output/obj1/sum_res.csv")
 
-# Trace plots
-plot_trace <- mcmc_trace(a_draws, pars = vars(starts_with("b_")))
-
-ggsave(
-  "output/obj1/trace_treatment_effects.jpg",
-  plot_trace,
-  width = 12,
-  height = 8,
-  units = "in"
-)
-
-
-# Overall count recovery
-plot_rec_overall <- pp_check(a_fit, ndraws = 803)
-
-ggsave(
-  "output/obj1/plot_recovery_overall.jpg",
-  plot_rec_overall,
-  width = 6,
-  height = 4,
-  units = "in"
-)
-
-# Arm-level count recovery
+# Predictive check on arm-level attrition counts
 plot_rec_trial <- pp_check(a_fit, type = "intervals", ndraws = 803)
 
 ggsave(
-  "output/obj1/plot_recovery_trials.jpg",
+  "output/obj1/ppc_arm_level.jpg",
   plot_rec_trial,
   width = 6,
   height = 4,
@@ -85,6 +66,8 @@ plot_log <- a_draws_split %>%
   scale_x_continuous(n.breaks = 10) +
   labs(x = "Mean log-odds (95% credible intervals)", y = "Treatment class")
 
+plot_log
+
 ggsave(
   "output/obj1/plot_log_odds.png",
   plot_log,
@@ -104,28 +87,11 @@ plot_odds <- a_draws_split %>%
   scale_x_continuous(n.breaks = 10) +
   labs(x = "Mean odds ratio (95% credible intervals)", y = "Treatment class")
 
+plot_odds
+
 ggsave(
   "output/obj1/plot_odds.png",
   plot_odds,
-  width = 8,
-  height = 4,
-  units = "in"
-)
-
-# Plot inverse odds
-plot_odds_inverse <- a_draws_split %>% 
-  filter(!class == "b_Intercept") %>% 
-  ggplot(aes(x = 1/mean_or, xmin = 1/lower_or, xmax = 1/upper_or, y = fct_rev(class))) +
-  geom_point(position = position_dodge(width = 0.5)) +
-  geom_linerange(position = position_dodge(width = 0.5)) +
-  geom_vline(xintercept = 1, colour = "red") +
-  theme_bw() +
-  scale_x_continuous(n.breaks = 10) +
-  labs(x = "Mean odds ratio (95% credible intervals)", y = "Treatment class")
-
-ggsave(
-  "output/obj1/plot_odds_inverse.png",
-  plot_odds_inverse,
   width = 8,
   height = 4,
   units = "in"
