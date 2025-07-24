@@ -111,7 +111,7 @@ c_network <- set_agd_regression(
   trt = trt,
   estimate = estimate,
   cov = b_vcov_prep,
-  regression = ~ .trt + .trt * (age10 + sex),
+  regression = ~ .trt * (age10 + sex),
   trt_ref = "placebo",
   trt_class = class
 )
@@ -125,7 +125,7 @@ mdl <- nma(
   link = "identity",
   likelihood = "normal",
   class_interactions = "common",
-  regression = ~ .trt + .trt * (age10 + sex),
+  regression = ~ .trt * (age10 + sex),
   prior_intercept = normal(scale = 1),
   prior_trt = normal(scale = 1),
   prior_reg = normal(scale = 1),

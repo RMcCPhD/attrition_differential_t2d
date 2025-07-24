@@ -166,6 +166,8 @@ c_inter_sum <- c_inter %>%
     )
   )
 
+c_inter_sum %>% mutate(across(contains("main"), ~ exp(.)))
+
 # Get distribution variables for 92 IPD trials
 # Join treatment class names
 # Get age10
@@ -183,21 +185,36 @@ c_dist_df <- a_imp_df %>%
 a_imp_id %>% anti_join(c_dist_df %>% select(nct_id))
 
 # Get mean age per sex
+# Centre on mean
+c_mean_age10_dpp4 <- mean(c_dist_df$age10[c_dist_df$class == "dpp4"])
+c_mean_age10_glp1 <- mean(c_dist_df$age10[c_dist_df$class == "glp1"])
+c_mean_age10_sglt2 <- mean(c_dist_df$age10[c_dist_df$class == "sglt2"])
+
 c_dist_sum <- c_dist_df %>% 
   mutate(sex = if_else(sex == 0L, 1L, 0L)) %>% 
   group_by(nct_id, sex, class) %>% 
-  reframe(age10 = mean(age10))
+  reframe(
+    age10 = mean(age10),
+    age10s = case_when(
+      class == "dpp4" ~ age10 - c_mean_age10_dpp4,
+      class == "glp1" ~ age10 - c_mean_age10_glp1,
+      TRUE ~ age10 - c_mean_age10_sglt2
+    )
+  ) %>% 
+  distinct()
 
 # Join summarised parameters
 # Calculate treatment effect
 c_join <- c_dist_sum %>% 
   left_join(c_inter_sum) %>% 
   mutate(
-    effect = age10 * age10_mean + main_mean + sex * sexMale_mean,
-    effect_lcri = age10 * age10_q2.5 + main_q2.5 + sex * sexMale_q2.5,
-    effect_ucri = age10 * age10_q97.5 + main_q97.5 + sex * sexMale_q97.5
+    effect = age10s * age10_mean + main_mean + sex * sexMale_mean,
+    effect_lcri = age10s * age10_q2.5 + main_q2.5 + sex * sexMale_q2.5,
+    effect_ucri = age10s * age10_q97.5 + main_q97.5 + sex * sexMale_q97.5
   ) %>% 
-  select(nct_id:age10, effect:effect_ucri)
+  select(nct_id:age10s, effect:effect_ucri)
+
+c_join %>% group_by(class) %>% reframe(mean_eff = mean(exp(effect)))
 
 # Test plot
 tst_plot <- c_join %>% 
@@ -206,24 +223,24 @@ tst_plot <- c_join %>%
     sex = factor(sex, levels = c("Female", "Male"))
   ) %>% 
   rename(Sex = sex) %>% 
-  ggplot(aes(x = age10, y = effect, colour = Sex, fill = Sex)) +
+  ggplot(aes(x = age10, y = exp(effect), colour = Sex, fill = Sex)) +
   geom_ribbon(
-    aes(ymin = effect_lcri, ymax = effect_ucri), 
+    aes(ymin = exp(effect_lcri), ymax = exp(effect_ucri)), 
     alpha = 0.05,
     linetype = "dashed"
   ) +
   geom_line() +
-  geom_line(aes(y = effect_lcri), linetype = "dashed", alpha = 0.5) +
-  geom_line(aes(y = effect_ucri), linetype = "dashed", alpha = 0.5) +
+  geom_line(aes(y = exp(effect_lcri)), linetype = "dashed", alpha = 0.5) +
+  geom_line(aes(y = exp(effect_ucri)), linetype = "dashed", alpha = 0.5) +
   facet_wrap(~ class, scales = "free") +
   scale_x_continuous(limits = c(4, 8)) +
   theme_classic() +
-  labs(x = "Mean age in decades", y = "Treatment effect on log-odds of attrition")
+  labs(x = "Mean age in decades", y = "Treatment effect on odds of attrition")
 
 tst_plot
 
 ggsave(
-  "output/obj2/plots/plot_inter_effect.png",
+  "output/obj2/plots/plot_inter_effect_OR.png",
   tst_plot,
   width = 10,
   height = 4,
