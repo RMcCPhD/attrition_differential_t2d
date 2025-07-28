@@ -60,6 +60,7 @@ b_add_constr <- b_prep_res %>%
   select(estimate, trt, sex, age10, nct_id, class, int_terms)
 
 # Add treatment and class to interaction terms
+# Reorder rows per group
 b_add_trt <- b_add_constr %>% 
   group_by(nct_id) %>% 
   mutate(
@@ -83,7 +84,8 @@ b_add_trt <- b_add_constr %>%
       is.na(class) & grepl("sglt2\\:", int_terms) ~ "sglt2",
       TRUE ~ class
     )
-  )
+  ) %>% 
+  ungroup()
 
 # Prepare vcov
 b_vcov <- a_imp_vcov %>% filter(modeltype == "glm_int")
@@ -121,14 +123,14 @@ plot(c_network)
 # With default priors
 mdl <- nma(
   c_network,
-  trt_effects = "fixed",
+  trt_effects = "random",
   link = "identity",
   likelihood = "normal",
   class_interactions = "common",
   regression = ~ .trt * (age10 + sex),
-  prior_intercept = normal(scale = 1),
-  prior_trt = normal(scale = 1),
-  prior_reg = normal(scale = 1),
+  prior_intercept = normal(scale = 10),
+  prior_trt = normal(scale = 10),
+  prior_reg = normal(scale = 10),
   seed = 123,
   chains = 4, 
   cores = 4,

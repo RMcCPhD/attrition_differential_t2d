@@ -7,7 +7,8 @@ source("scripts/00_config.R")
 source("scripts/00_functions.R")
 
 # Import fitted model
-a_fit <- readRDS("output/obj1/brm_fit.rds")
+# a_fit <- readRDS("output/obj1/brm_fit.rds")
+a_fit <- readRDS("output/obj1/brm_fit2.rds")
 
 # Model summary
 summary(a_fit)
@@ -22,10 +23,17 @@ a_draws_cnvg <- a_draws_sum %>%
   mutate(variable = gsub("^b_|^b_class_short", "", variable)) %>% 
   select(variable, rhat:ess_tail)
 
-# Tidy draws summary
-# Summarise mean and quantiles for credible effect
+# Tidy draws
+# Separate parameters and terms
 a_draws_split <- a_draws %>% 
-  pivot_longer(everything(), names_to = "class", values_to = "draw") %>% 
+  select(b_Intercept, contains("b_class")) %>% 
+  as_tibble() %>% 
+  pivot_longer(-b_Intercept, names_to = "class", values_to = "draw") %>% 
+  rename(intercept = b_Intercept) %>% 
+  mutate(class = gsub("b_class", "", class))
+  
+# Summarise mean and quantiles for credible effect
+a_draws_class_sum <- a_draws_split %>% 
   group_by(class) %>% 
   reframe(
     mean_log = mean(draw),
@@ -36,9 +44,7 @@ a_draws_split <- a_draws %>%
     median_or = median(exp(draw)),
     upper_or = quantile(exp(draw), 0.975),
     lower_or = quantile(exp(draw), 0.025)
-  ) %>% 
-  filter(grepl("^b_", class)) %>% 
-  mutate(class = gsub("b_class", "", class))
+  )
   
 # Save summaries
 write_csv(a_draws_cnvg, "output/obj1/sum_cnvg.csv")

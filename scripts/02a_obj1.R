@@ -15,13 +15,16 @@ a_imp_df <- readRDS("processed_data/tidied_agg.rds")
 b_set_ref <- a_imp_df %>% 
   mutate(
     class = factor(class),
-    class = relevel(class, ref = "placebo")
+    class = relevel(class, ref = "placebo"),
+    arm_compl = arm_n - arm_attr,
+    across(arm_n:arm_compl, as.integer)
   )
 
 # Fit hierarchical logistic regression via brms
 # Random effects for treatment class across trials
 b_fit <- brm(
-  formula = arm_attr | trials(arm_n) ~ class + (1 + class | trial_id),
+  # formula = arm_attr | trials(arm_n) ~ class + (1 + class | trial_id),
+  formula = arm_attr | trials(arm_n) ~ class + (1 | trial_id) + (0 + class | trial_id),
   data = b_set_ref,
   family = binomial(link = "logit"),
   chains = 4,
@@ -33,4 +36,4 @@ b_fit <- brm(
   control = list(adapt_delta = 0.99, max_treedepth = 15)
 )
 
-b_fit <- readRDS("outputs/brm_fit.rds")
+saveRDS(b_fit, "output/obj1/brm_fit2.rds")

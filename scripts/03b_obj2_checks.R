@@ -35,34 +35,30 @@ summary(a_imp_mdl)
 # Initial plots of interactions ------------------------------------------------
 
 # Commented out after running once
-
 # Model summary
-#
 # b_sum <- summary(a_imp_mdl)
-
-# Extract interactions summary
-#
-# b_sum_inter <- b_sum %>% 
-#   as_tibble() %>% 
-#   filter(grepl("beta", parameter)) %>% 
+# 
+# # Extract interactions summary
+# b_sum_inter <- b_sum %>%
+#   as_tibble() %>%
+#   filter(grepl("beta", parameter)) %>%
 #   mutate(
 #     parameter = gsub("\\[|\\]", "", parameter),
 #     parameter = gsub("beta", "", parameter)
-#   ) %>% 
+#   ) %>%
 #   separate(
 #     parameter,
 #     into = c("term", "class"),
 #     sep = "\\."
-#   ) %>% 
+#   ) %>%
 #   mutate(
 #     class = gsub("trtclass", "", class),
 #     term = gsub("\\:", "", term)
 #   )
-
-# Plot log-odds
-#
-# plot_log <- b_sum_inter %>% 
-#   mutate(term = case_match(term, "sexTRUE" ~ "sexMale", .default = term)) %>% 
+# 
+# # Plot log-odds
+# plot_log <- b_sum_inter %>%
+#   mutate(term = case_match(term, "sexTRUE" ~ "sexMale", .default = term)) %>%
 #   filter(!is.na(class)) %>%
 #   ggplot(aes(x = mean, xmin = `2.5%`, xmax = `97.5%`, y = term)) +
 #   geom_point(position = position_dodge(width = 0.5)) +
@@ -76,7 +72,7 @@ summary(a_imp_mdl)
 #   labs(x = "Mean log-odds (95% credible intervals)", y = NULL)
 # 
 # plot_log
-
+# 
 # ggsave(
 #   "output/obj2/plots/plot_log_odds.png",
 #   plot_log,
@@ -184,6 +180,10 @@ c_dist_df <- a_imp_df %>%
 
 a_imp_id %>% anti_join(c_dist_df %>% select(nct_id))
 
+c_dist_df %>% 
+  group_by(class, sex) %>% 
+  reframe(n = n(), mean_age = mean(age10), sd_age = sd(age10))
+
 # Get mean age per sex
 # Centre on mean
 c_mean_age10_dpp4 <- mean(c_dist_df$age10[c_dist_df$class == "dpp4"])
@@ -203,6 +203,15 @@ c_dist_sum <- c_dist_df %>%
   ) %>% 
   distinct()
 
+# Check age-sex distribution
+c_dist_sum %>%
+  ggplot(aes(x = age10, fill = as.factor(sex))) + 
+  geom_density(colour = "black", alpha = 0.3) + 
+  facet_wrap(~class, scales = "free_y") +
+  scale_x_continuous(n.breaks = 6) +
+  theme_classic() +
+  labs(x = "Age measured in decades", y = "Density", fill = "Sex")
+
 # Join summarised parameters
 # Calculate treatment effect
 c_join <- c_dist_sum %>% 
@@ -210,37 +219,60 @@ c_join <- c_dist_sum %>%
   mutate(
     effect = age10s * age10_mean + main_mean + sex * sexMale_mean,
     effect_lcri = age10s * age10_q2.5 + main_q2.5 + sex * sexMale_q2.5,
-    effect_ucri = age10s * age10_q97.5 + main_q97.5 + sex * sexMale_q97.5
+    effect_ucri = age10s * age10_q97.5 + main_q97.5 + sex * sexMale_q97.5,
+    across(effect:effect_ucri, ~ exp(.), .names = "{.col}_or")
   ) %>% 
-  select(nct_id:age10s, effect:effect_ucri)
+  select(nct_id:age10s, effect:effect_ucri_or)
 
 c_join %>% group_by(class) %>% reframe(mean_eff = mean(exp(effect)))
 
-# Test plot
+# Test plots
 tst_plot <- c_join %>% 
   mutate(
     sex = case_match(sex, 0L ~ "Female", 1L ~ "Male"),
     sex = factor(sex, levels = c("Female", "Male"))
   ) %>% 
   rename(Sex = sex) %>% 
-  ggplot(aes(x = age10, y = exp(effect), colour = Sex, fill = Sex)) +
+  ggplot(aes(x = age10, y = effect, colour = Sex, fill = Sex)) +
   geom_ribbon(
-    aes(ymin = exp(effect_lcri), ymax = exp(effect_ucri)), 
+    aes(ymin = effect_lcri, ymax = effect_ucri), 
     alpha = 0.05,
     linetype = "dashed"
   ) +
   geom_line() +
-  geom_line(aes(y = exp(effect_lcri)), linetype = "dashed", alpha = 0.5) +
-  geom_line(aes(y = exp(effect_ucri)), linetype = "dashed", alpha = 0.5) +
+  geom_line(aes(y = effect_lcri), linetype = "dashed", alpha = 0.5) +
+  geom_line(aes(y = effect_ucri), linetype = "dashed", alpha = 0.5) +
+  facet_wrap(~ class, scales = "free") +
+  scale_x_continuous(limits = c(4, 8)) +
+  theme_classic() +
+  labs(x = "Mean age in decades", y = "Treatment effect on log-odds of attrition")
+
+tst_plot
+
+tst_plot2 <- c_join %>% 
+  mutate(
+    sex = case_match(sex, 0L ~ "Female", 1L ~ "Male"),
+    sex = factor(sex, levels = c("Female", "Male"))
+  ) %>% 
+  rename(Sex = sex) %>% 
+  ggplot(aes(x = age10, y = effect_or, colour = Sex, fill = Sex)) +
+  geom_ribbon(
+    aes(ymin = effect_lcri_or, ymax = effect_ucri_or), 
+    alpha = 0.05,
+    linetype = "dashed"
+  ) +
+  geom_line() +
+  geom_line(aes(y = effect_lcri_or), linetype = "dashed", alpha = 0.5) +
+  geom_line(aes(y = effect_ucri_or), linetype = "dashed", alpha = 0.5) +
   facet_wrap(~ class, scales = "free") +
   scale_x_continuous(limits = c(4, 8)) +
   theme_classic() +
   labs(x = "Mean age in decades", y = "Treatment effect on odds of attrition")
 
-tst_plot
+tst_plot2
 
 ggsave(
-  "output/obj2/plots/plot_inter_effect_OR.png",
+  "output/obj2/plots/plot_inter_effect_OR2.png",
   tst_plot,
   width = 10,
   height = 4,
