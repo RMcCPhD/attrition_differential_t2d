@@ -12,82 +12,82 @@ source("scripts/00_functions.R")
 a_imp_ipd_res <- readRDS("processed_data/res_n92.rds")
 a_imp_vcov <- readRDS("processed_data/vcov_n92.rds")
 
-# Prepare interaction results
-b_prep_res <- a_imp_ipd_res %>% 
-  select(-spec, -ref, -std.error) %>% 
+# Import atc lookup
+a_imp_atc <- read_csv("created_metadata/atc.csv")
+a_imp_atc %>% count(code_short, class_short)
+
+# Prepare regression dataset ---------------------------------------------------
+
+# Add reference rows to regression dataset
+b_add_plc <- a_imp_ipd_res %>% 
   bind_rows(
     a_imp_ipd_res %>% 
       group_by(nct_id) %>% 
-      transmute(
-        nct_id,
-        class = "placebo",
-        atc = "placebo",
-        estimate = NA
-      )
+      transmute(nct_id, class = ref, atc = ref, estimate = NA, ref) %>% 
+      ungroup()
   ) %>% 
+  distinct() %>% 
+  arrange(nct_id) %>% 
+  select(-c(spec, std.error))
+
+# Create a terms variable
+# Remove interaction terms from class for covariate effects
+# Trim class to name for interaction terms
+# Add empty age10 and sex
+b_sep_terms <- b_add_plc %>% 
   mutate(
-    int_terms = class,
+    terms = class,
     class = case_when(
-      grepl("age10|sex|\\:", class) ~ NA,
+      grepl("^sex|^age10", class) ~ NA,
+      grepl("\\:", class) ~ gsub("\\:age10|\\:sex", "", class),
       class == "(Intercept)" ~ NA,
       TRUE ~ class
-    ),
-    age10 = NA,
-    sex = NA
-  ) %>% 
-  arrange(nct_id) %>% 
-  select(estimate, class, sex, age10, everything()) %>% 
-  distinct()
+    )
+  )
 
-# Construct nma dataset - identify interpretations
-# Reference treatment and reference covariate levels
-# Intercept, treatment effect and main covariate effects
-# Interactions of age and sex on treatment effect 
-b_add_constr <- b_prep_res %>% 
+# Add covariate levels
+# Complete treatment codes, corrects reference where not placebo
+b_add_levels <- b_sep_terms %>% 
   mutate(
-    sex = if_else(class == "placebo", FALSE, sex),
-    age10 = if_else(class == "placebo", 0, age10),
+    atc = case_when(
+      class == "insulin" ~ "A10A",
+      class == "biguanide" ~ "A10BA",
+      class == "sulf" ~ "A10BB",
+      class == "agluc" ~ "A10BF",
+      class == "thia" ~ "A10BG",
+      class == "dpp4" ~ "A10BH",
+      class == "glp1" ~ "A10BJ",
+      class == "sglt2" ~ "A10BK",
+      TRUE ~ atc
+    ),
     sex = case_when(
-      int_terms == "sex" | grepl("\\:sex", int_terms) ~ TRUE,
-      TRUE ~ sex
+      grepl("sex", terms) ~ TRUE, 
+      class == ref ~ FALSE,
+      TRUE ~ NA
     ),
     age10 = case_when(
-      int_terms == "age10" | grepl("\\:age10", int_terms) ~ 1, 
-      TRUE ~ age10
+      grepl("age10", terms) ~ 1, 
+      class == ref ~ 0,
+      TRUE ~ NA
     )
-  ) %>% 
-  rename(trt = atc) %>% 
-  select(estimate, trt, sex, age10, nct_id, class, int_terms)
+  )
 
-# Add treatment and class to interaction terms
-# Reorder rows per group
-b_add_trt <- b_add_constr %>% 
+# Keep core variables and rename to mimic vignette example
+b_ready <- b_add_levels %>% 
+  rename(trt = atc, x1 = sex, x2 = age10) %>% 
+  select(estimate, trt, x1, x2, nct_id, class, terms, ref)
+
+dpp4 <- b_ready %>% group_by(nct_id) %>% filter(any(class == "dpp4")) %>% ungroup()
+glp1 <- b_ready %>% group_by(nct_id) %>% filter(any(class == "glp1")) %>% ungroup()
+sglt2 <- b_ready %>% group_by(nct_id) %>% filter(any(class == "sglt2")) %>% ungroup()
+
+# Test: Remove placebo rows where it was not the reference
+b_test <- b_ready %>% 
   group_by(nct_id) %>% 
-  mutate(
-    trt = case_when(
-      is.na(trt) & grepl("biguanide\\:", int_terms) ~ "A10BA",
-      is.na(trt) & grepl("sulf\\:", int_terms) ~ "A10BB",
-      is.na(trt) & grepl("agluc\\:", int_terms) ~ "A10BF",
-      is.na(trt) & grepl("thia\\:", int_terms) ~ "A10BG",
-      is.na(trt) & grepl("dpp4\\:", int_terms) ~ "A10BH",
-      is.na(trt) & grepl("glp1\\:", int_terms) ~ "A10BJ",
-      is.na(trt) & grepl("sglt2\\:", int_terms) ~ "A10BK",
-      TRUE ~ trt
-    ),
-    class = case_when(
-      is.na(class) & grepl("biguanide\\:", int_terms) ~ "biguanide",
-      is.na(class) & grepl("sulf\\:", int_terms) ~ "sulf",
-      is.na(class) & grepl("agluc\\:", int_terms) ~ "agluc",
-      is.na(class) & grepl("thia\\:", int_terms) ~ "thia",
-      is.na(class) & grepl("dpp4\\:", int_terms) ~ "dpp4",
-      is.na(class) & grepl("glp1\\:", int_terms) ~ "glp1",
-      is.na(class) & grepl("sglt2\\:", int_terms) ~ "sglt2",
-      TRUE ~ class
-    )
-  ) %>% 
-  ungroup()
+  mutate(terms = if_else(ref != "placebo" & terms == "placebo", NA, terms))
 
-# Prepare vcov
+# Prepare variance-covariance matrices -----------------------------------------
+
 b_vcov <- a_imp_vcov %>% filter(modeltype == "glm_int")
 b_vcov_ready <- list(b_vcov$cov_matrix)
 b_vcov_ready <- b_vcov_ready[[1]]
@@ -96,9 +96,9 @@ names(b_vcov_ready) <- unique(b_vcov$nct_id)
 # Keep non-NA cells
 b_vcov_prep <- map2(b_vcov_ready, names(b_vcov_ready), function(mat, id) {
   
-  est_terms <- b_add_constr %>% 
+  est_terms <- b_ready %>% 
     filter(nct_id == id & !is.na(estimate)) %>% 
-    pull(int_terms)
+    pull(terms)
   
   matched_terms <- est_terms[est_terms %in% rownames(mat)]
   
@@ -108,12 +108,12 @@ b_vcov_prep <- map2(b_vcov_ready, names(b_vcov_ready), function(mat, id) {
 })
 
 c_network <- set_agd_regression(
-  data = b_add_trt,
+  data = b_ready,
   study = nct_id,
   trt = trt,
   estimate = estimate,
   cov = b_vcov_prep,
-  regression = ~ .trt * (age10 + sex),
+  regression = ~ .trt * (x2 + x1),
   trt_ref = "placebo",
   trt_class = class
 )
@@ -123,11 +123,11 @@ plot(c_network)
 # With default priors
 mdl <- nma(
   c_network,
-  trt_effects = "random",
+  trt_effects = "fixed",
   link = "identity",
   likelihood = "normal",
   class_interactions = "common",
-  regression = ~ .trt * (age10 + sex),
+  regression = ~ .trt * (x2 + x1),
   prior_intercept = normal(scale = 10),
   prior_trt = normal(scale = 10),
   prior_reg = normal(scale = 10),

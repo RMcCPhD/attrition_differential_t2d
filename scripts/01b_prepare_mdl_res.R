@@ -15,14 +15,19 @@ a_imp_ipd_res <- read_csv("vivli/res_n92.csv")
 a_imp_ipd_cor <- read_csv("vivli/coef_cor_n92.csv")
 
 # Prepare ipd aggregate data
+# Remove 2 trials where se from interactions were extremely large
 b_prep_ipd_res <- a_imp_ipd_res %>% 
-  filter(modeltype == "glm" & spec == "int" & std.error < 11) %>% 
+  filter(modeltype == "glm" & spec == "int") %>% 
+  group_by(nct_id) %>% 
+  filter(!any(std.error > 11)) %>% 
+  ungroup() %>% 
   select(nct_id, spec:std.error) %>% 
   rename(class = term) %>% 
-  left_join(a_imp_df %>% select(class, atc) %>% distinct())
+  left_join(a_imp_df %>% select(class, atc) %>% distinct()) %>% 
+  arrange(nct_id)
 
 # Save
-saveRDS(b_prep_ipd_res, "processed_data/res_n92.rds")
+saveRDS(b_prep_ipd_res, "processed_data/res_n90.rds")
 
 # Construct VCOV matrices-------------------------------------------------------
 
@@ -42,6 +47,7 @@ b_vars_models <- a_imp_ipd_cor %>%
 b_sym <- a_imp_ipd_cor %>% 
   rename(var1 = row, var2 = col) %>% 
   bind_rows(a_imp_ipd_cor %>% rename(var1 = col, var2 = row)) %>% 
+  inner_join(b_vars_models %>% select(nct_id) %>% distinct()) %>% 
   group_by(nct_id, modeltype) %>% 
   group_split() %>% 
   map_dfr(function(data_part) {
@@ -60,6 +66,7 @@ b_sym <- a_imp_ipd_cor %>%
 
 # Construct correlation matrices
 b_matrices <- b_sym %>% 
+  filter(modeltype == "glm_int") %>% 
   group_by(nct_id, modeltype) %>% 
   nest() %>% 
   mutate(
@@ -79,8 +86,8 @@ b_matrices <- b_sym %>%
 # Convert to diagonals and triangles to variance and covariance
 b_vcov <- b_matrices %>% 
   mutate(
-    cov_matrix = pmap(list(nct_id, modeltype, cor_matrix), function(id, type, cor_mat) {
-      se_df <- a_imp_ipd_res %>% filter(nct_id == id, modeltype == modeltype)
+    cov_matrix = pmap(list(nct_id, cor_matrix), function(id, cor_mat) {
+      se_df <- a_imp_ipd_res %>% filter(nct_id == id)
       se_vec <- setNames(se_df$std.error, se_df$term)
       se_order <- se_vec[rownames(cor_mat)]
       cov_mat <- outer(se_order, se_order) * cor_mat
@@ -89,4 +96,4 @@ b_vcov <- b_matrices %>%
   )
 
 # Save
-saveRDS(b_vcov, "processed_data/vcov_n92.rds")
+saveRDS(b_vcov, "processed_data/vcov_n90.rds")
