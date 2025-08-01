@@ -12,5 +12,12 @@ Modification 2
 Removed three trials where the comparator was multiple older blood glucose-lowering agents categorised as A10B. Non-informative.
 AACT: 299 -> 296
 
-Ending with:
+Modification 3
+Removed two trials where interaction estimates were greater than +/- 10, or where standard errors were greater than +/- 2
+IPD: 92 -> 56
+
+Objective 1:
 388 trials - 296 AACT, 92 IPD
+
+Objective 2:
+56 IPD

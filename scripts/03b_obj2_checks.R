@@ -10,13 +10,14 @@ source("scripts/00_config.R")
 source("scripts/00_functions.R")
 
 # Import fitted model
-a_imp_mdl <- readRDS("output/obj2/inter_fit.rds")
+# a_imp_mdl <- readRDS("output/obj2/inter_fit.rds")
+a_imp_mdl <- readRDS("output/obj2/inter_fit_n56.rds")
 
 # Import age distributions for IPD trials
 a_imp_df <- bind_rows(readRDS("data/agg_ipd_hba1c.Rds")$ipd)
 
 # Import interaction results to get IPD trial IDs
-a_imp_id <- readRDS("processed_data/res_n92.rds")
+a_imp_id <- readRDS("processed_data/res_n56.rds")
 
 # Import atc metadata
 a_imp_atc <- read_csv("created_metadata/updated_class_names_codes.csv") %>% 
@@ -76,7 +77,7 @@ plot_log <- b_sum_inter %>%
 plot_log
 
 ggsave(
-  "output/obj2/plots/plot_inter_rejig1.png",
+  "output/obj2/plots/plot_inter_rejig3.png",
   plot_log,
   width = 4,
   height = 4,
@@ -106,7 +107,7 @@ c_params <- c_pos %>%
 # Check contents (12k draws max - 3k across 4 chains after warmup)
 # Beta: 192,000 rows (168k for age and sex inters, remaining ref inter and main)
 # Delta: 84,000 rows (12k for 7 treatment classes)
-# Mu: 1,104,000 rows (12k for each trial)
+# Mu: 1,104,000 rows (12k for each trial) - 672k in reduced version (56 trials)
 # Log-likelihood: 12,000 (one per iteration)
 c_params %>% count(param)
 
@@ -210,11 +211,11 @@ e_join_grid <- c_newer %>%
   )
 
 # Check class distribution for relative effects
-e_join_grid %>% 
-  ggplot(aes(x = reff_log, fill = as.factor(sex))) +
-  geom_density(colour = "black", alpha = 0.3) +
-  facet_wrap(~age10, scales = "free") +
-  theme_classic()
+# e_join_grid %>% 
+#   ggplot(aes(x = reff_log, fill = as.factor(sex))) +
+#   geom_density(colour = "black", alpha = 0.3) +
+#   facet_wrap(~age10, scales = "free") +
+#   theme_classic()
 
 # Summarise relative effect
 f_sum_reff <- e_join_grid %>% 
@@ -252,20 +253,21 @@ tst_plot <- f_sum_reff %>%
   theme_classic() +
   labs(x = "Mean age in decades", y = "Treatment effect on odds of attrition")
 
+tst_plot
+
 ggsave(
-  "output/obj2/plots/plot_or_rejig1.png",
+  "output/obj2/plots/plot_or_rejig3.png",
   tst_plot,
   width = 10,
   height = 4,
   units = "in"
 )
 
-
 # Check difference between average relative effect and main effect per class
 e_join_grid %>% 
   group_by(class) %>% 
   reframe(
-    mean_main = mean(main),
-    mean_reff = mean(reff_log)
+    mean_main = mean(exp(main)),
+    mean_reff = mean(reff_odds)
   ) %>% 
   mutate(diff = mean_main - mean_reff)
