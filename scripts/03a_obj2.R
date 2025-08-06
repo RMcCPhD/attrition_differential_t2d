@@ -7,10 +7,8 @@ source("scripts/00_config.R")
 source("scripts/00_functions.R")
 
 # Import aggregate data and prepared ipd outputs
-a_imp_res <- readRDS("processed_data/res_n56.rds")
-a_imp_vcov <- readRDS("processed_data/vcov_n56.rds")
-# a_imp_ipd_res <- readRDS("processed_data/res_n92.rds")
-# a_imp_vcov <- readRDS("processed_data/vcov_n92.rds")
+a_imp_res <- readRDS("processed_data/res_n90.rds")
+a_imp_vcov <- readRDS("processed_data/vcov_n90.rds")
 
 # Import atc lookup
 a_imp_atc <- read_csv("created_metadata/atc.csv")
@@ -25,8 +23,7 @@ b_add_plc <- a_imp_res %>%
       ungroup()
   ) %>% 
   distinct() %>% 
-  arrange(nct_id) %>% 
-  select(-c(spec, std.error))
+  arrange(nct_id)
 
 # Fix atc where reference is class name
 # Add covariate levels
@@ -55,27 +52,70 @@ b_add_covs <- b_add_plc %>%
     )
   )
 
+# Inspect interaction estimates
+# Most estimates cross zero
+plot_inspect_res <- b_add_covs %>% 
+  mutate(
+    term = if_else(term == "(Intercept)", paste0("aaIntercept_", ref), term),
+    term = as.factor(term),
+    term = fct_relevel(term, grep("aaIntercept_", levels(term), value = TRUE)[1])
+  ) %>% 
+  arrange(nct_id, term) %>% 
+  select(nct_id, term, estimate, std.error) %>% 
+  na.omit() %>% 
+  mutate(
+    lci = estimate - 1.96 * std.error,
+    uci = estimate + 1.96 * std.error
+  ) %>% 
+  ggplot(aes(x = fct_rev(term), y = estimate, ymin = lci, ymax = uci)) +
+  geom_point() +
+  geom_linerange() +
+  geom_hline(yintercept = 0, colour = "red", linetype = "dashed") +
+  labs(x = NULL, y = NULL) +
+  facet_wrap(~nct_id, scales = "free") +
+  coord_flip()
+
+ggsave(
+  "output/obj2/plots/inspect_res.png",
+  plot_inspect_res,
+  width = 30,
+  height = 20,
+  units = "in"
+)
+
 # Keep core variables and rename to mimic vignette example
 b_ready <- b_add_covs %>% 
   rename(trt = atc, x1 = sex, x2 = age10) %>% 
-  select(estimate, trt, x1, x2, nct_id, class, term, ref)
+  select(estimate, std.error, trt, x1, x2, nct_id, class, term, ref)
 
-# Keep core variables and rename to mimic vignette example
-b_ready <- b_add_levels %>% 
-  rename(trt = atc, x1 = sex, x2 = age10) %>% 
-  select(estimate, trt, x1, x2, nct_id, class, terms, ref)
-
+# Prepare vcov matrices
 c_vcov_lst <- a_imp_vcov$cov_matrix
 names(c_vcov_lst) <- unique(b_ready$nct_id)
 
+# Remove a trial with very large variance for a treatment:sex interaction
+# 89 trials remaining
+b_ready_rm <- b_ready %>% filter(nct_id != "NCT02597049")
+c_vcov_rm <- c_vcov_lst[names(c_vcov_lst) != "NCT02597049"]
+
+# Check age10 interaction estimates for dpp4 and sglt2
+tst <- b_ready_rm %>% 
+  group_by(nct_id) %>% 
+  filter(term == "dpp4:age10" | term == "sglt2:age10") %>% 
+  ungroup()
+
+# Save for future use
+saveRDS(b_ready_rm, "output/obj2/res_ready_n89.rds")
+saveRDS(c_vcov_rm, "output/obj2/vcov_ready_n89.rds")
+
 # Construct network
 c_network <- set_agd_regression(
-  data = b_ready,
+  data = b_ready_rm,
   study = nct_id,
   trt = trt,
   estimate = estimate,
-  cov = c_vcov_lst,
-  regression = ~ .trt * (x2 + x1),
+  cov = c_vcov_rm,
+  regression = ~ .trt,
+  # regression = ~ .trt * (x2 + x1),
   trt_ref = "placebo",
   trt_class = class
 )
@@ -89,10 +129,11 @@ mdl <- nma(
   link = "identity",
   likelihood = "normal",
   class_interactions = "common",
-  regression = ~ .trt * (x2 + x1),
+  regression = ~ .trt,
+  # regression = ~ .trt * (x2 + x1),
   prior_intercept = normal(scale = 10),
   prior_trt = normal(scale = 10),
-  prior_reg = normal(scale = 10),
+  prior_reg = normal(scale = 1),
   seed = 123,
   chains = 4, 
   cores = 4,
@@ -101,4 +142,4 @@ mdl <- nma(
   control = list(adapt_delta = 0.999, max_treedepth = 15)
 )
 
-saveRDS(mdl, "output/obj2/inter_fit_n56.rds")
+saveRDS(mdl, "output/obj2/inter_fit_n89_unadj.rds")

@@ -20,6 +20,10 @@ b_set_ref <- a_imp_df %>%
     across(arm_n:arm_compl, as.integer)
   )
 
+# Remove IPD trial with 2 attrition events to see if it resolves
+# divergent transition
+b_ipd_rm <- b_set_ref %>% filter(source == "ipd", trial_id != "NCT01769378")
+
 # Fit hierarchical logistic regression via brms
 # Random effects for treatment class across trials
 b_fit <- brm(
@@ -36,4 +40,20 @@ b_fit <- brm(
   control = list(adapt_delta = 0.99, max_treedepth = 15)
 )
 
-saveRDS(b_fit, "output/obj1/brm_fit2.rds")
+saveRDS(b_fit, "output/obj1/brm_fit.rds")
+
+# Fit with just the IPD trials
+b_fit_ipd <- brm(
+  formula = arm_attr | trials(arm_n) ~ class + (1 | trial_id) + (0 + class | trial_id),
+  data = b_ipd_rm,
+  family = binomial(link = "logit"),
+  chains = 4,
+  iter = 4000,
+  warmup = 1000,
+  cores = 4,
+  seed = 123,
+  backend = "rstan",
+  control = list(adapt_delta = 0.999, max_treedepth = 15)
+)
+
+saveRDS(b_fit_ipd, "output/obj1/brm_fit_ipd.rds")

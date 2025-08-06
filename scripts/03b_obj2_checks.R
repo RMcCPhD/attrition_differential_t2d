@@ -10,14 +10,14 @@ source("scripts/00_config.R")
 source("scripts/00_functions.R")
 
 # Import fitted model
-# a_imp_mdl <- readRDS("output/obj2/inter_fit.rds")
-a_imp_mdl <- readRDS("output/obj2/inter_fit_n56.rds")
+a_imp_mdl <- readRDS("output/obj2/inter_fit_n89.rds")
+a_imp_mdl_unadj <- readRDS("output/obj2/inter_fit_n89_unadj.rds")
 
 # Import age distributions for IPD trials
 a_imp_df <- bind_rows(readRDS("data/agg_ipd_hba1c.Rds")$ipd)
 
 # Import interaction results to get IPD trial IDs
-a_imp_id <- readRDS("processed_data/res_n56.rds")
+a_imp_id <- readRDS("processed_data/res_n90.rds")
 
 # Import atc metadata
 a_imp_atc <- read_csv("created_metadata/updated_class_names_codes.csv") %>% 
@@ -31,7 +31,25 @@ a_imp_atc <- read_csv("created_metadata/updated_class_names_codes.csv") %>%
   ) %>% 
   select(class = new_class, name = atc_short)
 
-summary(a_imp_mdl)
+summary(a_imp_mdl) %>% 
+  as_tibble() %>% 
+  filter(grepl("beta\\[|d\\[", parameter)) %>% 
+  print(n = 26)
+
+summary(a_imp_mdl) %>% 
+  as_tibble() %>% 
+  filter(grepl("d\\[", parameter)) %>% 
+  mutate(parameter = gsub("d\\[|\\]", "", parameter)) %>% 
+  left_join(a_imp_atc %>% rename(parameter = name)) %>% 
+  select(class, mean, `2.5%`, `97.5%`) %>% 
+  ggplot(aes(x = fct_rev(class), y = mean, ymin = `2.5%`, ymax = `97.5%`)) +
+  geom_point() +
+  geom_linerange() +
+  geom_hline(yintercept = 0, colour = "red") +
+  theme_bw() +
+  scale_y_continuous(n.breaks = 10) +
+  labs(x = "Mean log-odds (95% credible intervals)", y = "Treatment class") +
+  coord_flip()
 
 # Initial plots of interactions ------------------------------------------------
 
@@ -53,36 +71,36 @@ b_sum_inter <- summary(a_imp_mdl) %>%
     class = gsub("trtclass", "", class),
     term = gsub("\\:", "", term)
   )
+
+# Plot log-odds
+# plot_log <- b_sum_inter %>%
+#   mutate(
+#     term = case_match(
+#       term, 
+#       "x1TRUE" ~ "sexMale", 
+#       "x2" ~ "age10",
+#       .default = term
+#     )
+#   ) %>%
+#   filter(!is.na(class), class %in% c("dpp4", "glp1", "sglt2")) %>%
+#   ggplot(aes(x = mean, xmin = `2.5%`, xmax = `97.5%`, y = term)) +
+#   geom_point(position = position_dodge(width = 0.5)) +
+#   geom_linerange(position = position_dodge(width = 0.5)) +
+#   geom_vline(xintercept = 0, colour = "red") +
+#   facet_wrap(~class, scales = "free", ncol = 1) +
+#   theme_bw() +
+#   scale_x_continuous(n.breaks = 6) +
+#   labs(x = "Mean log-odds (95% credible intervals)", y = NULL)
 # 
-# # Plot log-odds
-plot_log <- b_sum_inter %>%
-  mutate(
-    term = case_match(
-      term, 
-      "x1TRUE" ~ "sexMale", 
-      "x2" ~ "age10",
-      .default = term
-    )
-  ) %>%
-  filter(!is.na(class), class %in% c("dpp4", "glp1", "sglt2")) %>%
-  ggplot(aes(x = mean, xmin = `2.5%`, xmax = `97.5%`, y = term)) +
-  geom_point(position = position_dodge(width = 0.5)) +
-  geom_linerange(position = position_dodge(width = 0.5)) +
-  geom_vline(xintercept = 0, colour = "red") +
-  facet_wrap(~class, scales = "free", ncol = 1) +
-  theme_bw() +
-  scale_x_continuous(n.breaks = 6) +
-  labs(x = "Mean log-odds (95% credible intervals)", y = NULL)
-
-plot_log
-
-ggsave(
-  "output/obj2/plots/plot_inter_rejig3.png",
-  plot_log,
-  width = 4,
-  height = 4,
-  units = "in"
-)
+# plot_log
+# 
+# ggsave(
+#   "output/obj2/plots/plot_inter.png",
+#   plot_log,
+#   width = 4,
+#   height = 4,
+#   units = "in"
+# )
 
 # Prepare interaction comparisons data -----------------------------------------
 
@@ -162,19 +180,15 @@ c_inter <- c_join %>%
   rename(main = delta)
 
 # Get estimates for newer antidiabetics
-# Nest
 c_newer <- c_inter %>% 
   filter(class %in% c("dpp4", "glp1", "sglt2")) %>% 
   rename(age10_est = age10, sexMale_est = sexMale) %>% 
-  # group_by(class) %>% 
-  # slice_sample(n = 2000) %>% 
-  # ungroup() %>% 
   select(-c(iter, contains("_ref")))
 
 # Estimate relative effect -----------------------------------------------------
 
 # Prepare synthetic IPD for newer antidiabetics
-# Calculate age10
+# Get age10
 # Reference is female
 d_ipd <- a_imp_df %>% 
   select(nct_id, sex, age, trtcls5) %>% 
@@ -195,27 +209,30 @@ d_ipd %>%
   theme_classic() +
   labs(x = "Age measured in decades", y = "Density", fill = "Sex")
 
+# Get mean age per treatment class
+d_ipd %>% group_by(class) %>% reframe(mean_age = mean(age10))
+
 # Create prediction grid
 e_pred_grid <- expand_grid(
   trt = c("dpp4", "glp1", "sglt2"),
   age10 = seq(4, 8, by = 0.1),
   sex = c(0L, 1L)
-)
+  ) %>% 
+  mutate(
+    age10c = case_when(
+      trt == "dpp4" ~ age10 - 5.66,
+      trt == "glp1" ~ age10 - 5.72,
+      trt == "sglt2" ~ age10 - 5.57
+    )
+  )
 
 # Join prediction grid with posterior draws
 e_join_grid <- c_newer %>% 
   crossing(e_pred_grid) %>% 
   mutate(
-    reff_log = main + age10 * age10_est + sex * sexMale_est,
+    reff_log = main + age10c * age10_est + sex * sexMale_est,
     reff_odds = exp(reff_log)
   )
-
-# Check class distribution for relative effects
-# e_join_grid %>% 
-#   ggplot(aes(x = reff_log, fill = as.factor(sex))) +
-#   geom_density(colour = "black", alpha = 0.3) +
-#   facet_wrap(~age10, scales = "free") +
-#   theme_classic()
 
 # Summarise relative effect
 f_sum_reff <- e_join_grid %>% 
@@ -256,7 +273,7 @@ tst_plot <- f_sum_reff %>%
 tst_plot
 
 ggsave(
-  "output/obj2/plots/plot_or_rejig3.png",
+  "output/obj2/plots/plot_or.png",
   tst_plot,
   width = 10,
   height = 4,

@@ -112,7 +112,8 @@ c_ipd_prep <- a_imp_ipd %>%
       TRUE ~ class
     )
   ) %>% 
-  select(-c(min_dur:med_dur))
+  select(-c(min_dur:med_dur)) %>% 
+  arrange(trial_id)
 
 # Check NAs (none)
 checkNA(c_ipd_prep)
@@ -120,7 +121,8 @@ checkNA(c_ipd_prep)
 # Collapse counts by treatment arm
 c_ipd_clps <- c_ipd_prep %>% 
   group_by(trial_id, source, class, atc) %>% 
-  reframe(across(arm_n:arm_attr, ~ sum(.)))
+  reframe(across(arm_n:arm_attr, ~ sum(.))) %>% 
+  arrange(trial_id)
 
 # Check data
 c_ipd_clps %>% count(trial_id, source) %>% count(source)
@@ -129,7 +131,12 @@ c_ipd_clps %>% count(class)
 # Join datasets ----------------------------------------------------------------
 
 # Join datasets, no NAs introduced
-d_join <- b_aact_clps %>% full_join(c_ipd_clps)
+# Remove trials with only one treatment class
+d_join <- b_aact_clps %>% 
+  full_join(c_ipd_clps) %>% 
+  group_by(trial_id) %>% 
+  filter(length(unique(class)) > 1) %>% 
+  ungroup()
 
 # No NAs, 388 trials (296 aact, 92 ipd), 9 treatment classes and placebo
 checkNA(d_join)

@@ -24,11 +24,11 @@ hist(b_log_res$estimate) # Some estimates greater than +/- 10
 hist(b_log_res$std.error) # Some se very large
 hist(b_log_cor$value) # All within +/- 1
 
-# Remove trials where estimates are greater than +/- 10 or se +/- 1
-# 56 remaining
+# Remove any trials where standard errors are blown up
+# 90 trials remaining
 b_res_rm <- b_log_res %>% 
   group_by(nct_id) %>% 
-  filter(!any(abs(estimate) > 10), !any(std.error > 2)) %>% 
+  filter(!any(std.error > 11)) %>% 
   ungroup()
 
 # Tidy regression data
@@ -49,9 +49,9 @@ c_res_tidy <- b_res_rm %>%
   arrange(nct_id)
 
 # Save tidied regression data
-saveRDS(c_res_tidy, "processed_data/res_n56.rds")
+saveRDS(c_res_tidy, "processed_data/res_n90.rds")
 
-# Get correlations for 56 trials
+# Get correlations for 90 trials
 c_cor <- b_log_cor %>% 
   inner_join(c_res_tidy %>% select(nct_id) %>% distinct()) %>% 
   select(-modeltype)
@@ -114,4 +114,4 @@ c_vcov <- c_cor_construct %>%
   )
 
 # Save
-saveRDS(c_vcov, "processed_data/vcov_n56.rds")
+saveRDS(c_vcov, "processed_data/vcov_n90.rds")

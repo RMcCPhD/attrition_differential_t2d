@@ -7,14 +7,11 @@ source("scripts/00_config.R")
 source("scripts/00_functions.R")
 
 # Import fitted model
-# a_fit <- readRDS("output/obj1/brm_fit.rds")
-a_fit <- readRDS("output/obj1/brm_fit2.rds")
-
-# Model summary
-summary(a_fit)
+a_fit <- readRDS("output/obj1/brm_fit.rds")
+a_fit_ipd <- readRDS("output/obj1/brm_fit_ipd.rds")
 
 # Extract posterior draws and summarise
-a_draws <- as_draws_df(a_fit)
+a_draws <- as_draws_df(a_fit_ipd)
 a_draws_sum <- summarise_draws(a_draws)
 
 # Convergence summary
@@ -47,11 +44,11 @@ a_draws_class_sum <- a_draws_split %>%
   )
   
 # Save summaries
-write_csv(a_draws_cnvg, "output/obj1/sum_cnvg.csv")
-write_csv(a_draws_split, "output/obj1/sum_res.csv")
+# write_csv(a_draws_cnvg, "output/obj1/sum_cnvg.csv")
+# write_csv(a_draws_split, "output/obj1/sum_res.csv")
 
 # Predictive check on arm-level attrition counts
-plot_rec_trial <- pp_check(a_fit, type = "intervals", ndraws = 803)
+plot_rec_trial <- pp_check(a_fit_ipd, type = "intervals", ndraws = 803)
 
 ggsave(
   "output/obj1/ppc_arm_level.jpg",
@@ -64,8 +61,8 @@ ggsave(
 # Treatment effect estimates ---------------------------------------------------
 
 # Plot log-odds
-plot_log <- a_draws_split %>% 
-  filter(!class == "b_Intercept") %>% 
+plot_log <- a_draws_class_sum %>% 
+  filter(class %in% c("dpp4", "glp1", "sglt2")) %>% 
   ggplot(aes(x = mean_log, xmin = lower_log, xmax = upper_log, y = fct_rev(class))) +
   geom_point(position = position_dodge(width = 0.5)) +
   geom_linerange(position = position_dodge(width = 0.5)) +
@@ -85,8 +82,7 @@ ggsave(
 )
 
 # Plot odds ratio
-plot_odds <- a_draws_split %>% 
-  filter(!class == "b_Intercept") %>% 
+plot_odds <- a_draws_class_sum %>% 
   ggplot(aes(x = mean_or, xmin = lower_or, xmax = upper_or, y = fct_rev(class))) +
   geom_point(position = position_dodge(width = 0.5)) +
   geom_linerange(position = position_dodge(width = 0.5)) +
