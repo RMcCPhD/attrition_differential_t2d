@@ -1,4 +1,19 @@
 
+summary(a_imp_mdl) %>% 
+  as_tibble() %>% 
+  filter(grepl("d\\[", parameter)) %>% 
+  mutate(parameter = gsub("d\\[|\\]", "", parameter)) %>% 
+  left_join(a_imp_atc %>% rename(parameter = name)) %>% 
+  select(class, mean, `2.5%`, `97.5%`) %>% 
+  ggplot(aes(x = fct_rev(class), y = mean, ymin = `2.5%`, ymax = `97.5%`)) +
+  geom_point() +
+  geom_linerange() +
+  geom_hline(yintercept = 0, colour = "red") +
+  theme_bw() +
+  scale_y_continuous(n.breaks = 10) +
+  labs(x = "Treatment class", y = "Mean log-odds (95% credible intervals)") +
+  coord_flip()
+
 # Script to explore why estimates for relative effect are strange
 # Mean difference between relative effects and main effects are substantial
 

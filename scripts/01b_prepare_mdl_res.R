@@ -31,6 +31,59 @@ b_res_rm <- b_log_res %>%
   filter(!any(std.error > 11)) %>% 
   ungroup()
 
+# Check intercept estimates (reference, placebo or active)
+b_res_rm %>% 
+  filter(term == "(Intercept)") %>% 
+  ggplot(aes(x = estimate)) +
+  geom_density() +
+  facet_wrap(~ref, scales = "free") +
+  scale_x_continuous(n.breaks = 6)
+
+# Check unadjusted estimates
+plot_unadj <- b_res_rm %>% 
+  filter(term %in% c("dpp4", "sglt2", "glp1")) %>% 
+  ggplot(aes(x = estimate)) +
+  geom_density() +
+  facet_wrap(~term, scales = "free")
+
+ggsave(
+  "output/plot_dens_unadj.png",
+  plot_unadj,
+  width = 8,
+  height = 4,
+  units = "in"
+)
+
+# Check main effects (age, sex)
+plot_main <- b_res_rm %>% 
+  filter(term %in% c("age10", "sex")) %>% 
+  ggplot(aes(x = estimate)) +
+  geom_density() +
+  facet_wrap(~term, scales = "free")
+
+ggsave(
+  "output/plot_dens_main.png",
+  plot_main,
+  width = 8,
+  height = 4,
+  units = "in"
+)
+
+# Examine interaction estimates
+plot_inter <- b_res_rm %>% 
+  filter(grepl("(sglt2|dpp4|glp1)\\:", term)) %>% 
+  ggplot(aes(x = estimate)) +
+  geom_density() +
+  facet_wrap(~term, scales = "free")
+
+ggsave(
+  "output/plot_dens_inter.png",
+  plot_inter,
+  width = 8,
+  height = 4,
+  units = "in"
+)
+
 # Tidy regression data
 # Add class variable
 # Join atc lookup to get class codes
@@ -50,6 +103,8 @@ c_res_tidy <- b_res_rm %>%
 
 # Save tidied regression data
 saveRDS(c_res_tidy, "processed_data/res_n90.rds")
+
+# Get VCOV matrices ------------------------------------------------------------
 
 # Get correlations for 90 trials
 c_cor <- b_log_cor %>% 
@@ -105,7 +160,7 @@ c_cor_construct <- c_cor_parts %>%
 c_vcov <- c_cor_construct %>% 
   mutate(
     cov_matrix = pmap(list(nct_id, cor_matrix), function(id, cor_mat) {
-      se_df <- a_imp_ipd_res %>% filter(nct_id == id)
+      se_df <- b_log_res %>% filter(nct_id == id)
       se_vec <- setNames(se_df$std.error, se_df$term)
       se_order <- se_vec[rownames(cor_mat)]
       cov_mat <- outer(se_order, se_order) * cor_mat

@@ -141,5 +141,7 @@ d_mdl <- nma(
   regression = ~ .trt,
   class_interactions = "common",
   prior_intercept = normal(scale = 10),
-  prior_reg = normal(scale = 10), chains = 4, cores = 4
+  prior_reg = normal(scale = 10),
+  chains = 4, 
+  cores = 4
 )
