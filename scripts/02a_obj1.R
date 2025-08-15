@@ -16,7 +16,6 @@ a_insp <- a_imp_df %>%
   filter(any(class == "glp1"))
 
 # Set placebo as global reference treatment
-# Test: remove trials with <10 events (365 -> 268)
 # This brings the unadjusted estimates in line with mean relative effects
 b_set_ref <- a_imp_df %>% 
   mutate(
@@ -25,9 +24,6 @@ b_set_ref <- a_imp_df %>%
     arm_compl = arm_n - arm_attr,
     across(arm_n:arm_compl, as.integer)
   )
-  # group_by(trial_id) %>% 
-  # filter(!any(arm_attr < 10)) %>% 
-  # ungroup()
 
 # Fit hierarchical logistic regression via brms
 # Random effects for treatment class across trials
