@@ -4,7 +4,7 @@ source("scripts/00_config.R")
 source("scripts/00_functions.R")
 
 # Import fitted model
-a_imp_mdl <- readRDS("output/obj2/inter_fit_n89.rds")
+a_imp_mdl <- readRDS("output/obj2/inter_fit_n90.rds")
 
 # Import ATC lookup
 a_imp_atc <- read_csv("created_metadata/updated_class_names_codes.csv") %>% 
@@ -18,7 +18,7 @@ a_imp_atc <- read_csv("created_metadata/updated_class_names_codes.csv") %>%
   ) %>% 
   select(class = new_class, name = atc_short)
 
-# Import IPD (for class-specific age10 means)
+# Import synthetic IPD (for class-specific age10 means)
 a_imp_ipd <- bind_rows(readRDS("data/agg_ipd_hba1c.Rds")$ipd) %>% 
   select(nct_id, sex, age, trtcls5) %>% 
   inner_join(readRDS("processed_data/res_n90.rds") %>% distinct(nct_id)) %>% 
@@ -29,11 +29,23 @@ a_imp_ipd <- bind_rows(readRDS("data/agg_ipd_hba1c.Rds")$ipd) %>%
   mutate(age = age/10) %>% 
   rename(age10 = age)
 
+# Check age-sex distributions - normal, similar between sexes
+a_imp_ipd %>%
+  ggplot(aes(x = age10, fill = as.factor(sex))) + 
+  geom_density(colour = "black", alpha = 0.3) + 
+  facet_wrap(~class, scales = "free_y") +
+  scale_x_continuous(n.breaks = 6) +
+  theme_classic() +
+  labs(x = "Age measured in decades", y = "Density", fill = "Sex")
+
 # Get class age10 means
 a_ipd_mean <- a_imp_ipd %>% 
   filter(class %in% c("dpp4", "glp1", "sglt2")) %>% 
   group_by(class) %>% 
-  reframe(mean_age = mean(age10))
+  reframe(
+    mean_age = mean(age10),
+    prop_f = sum(sex == 0L)/sum(sex)
+  )
 
 # class mean_age
 # <chr>    <dbl>
@@ -45,6 +57,7 @@ a_ipd_mean <- a_imp_ipd %>%
 
 # Get tibble of posterior draws
 b_pos <- as.data.frame(a_imp_mdl$stanfit) %>% as_tibble(rownames = "iter")
+summary(b_pos)
 
 # Build a tidy table of draws for each newer antidiabetic
 get_names <- c(dpp4 = "A10BH", glp1 = "A10BJ", sglt2 = "A10BK")
@@ -61,7 +74,17 @@ get_draws <- function(class_name, atc_name) {
 
 b_tidy_draws <- map2_dfr(names(get_names), unname(get_names), get_draws)
 
-# Check slopes for age10 and sex
+# Check main effects (treatment)
+b_tidy_draws %>% 
+  select(class, d_main) %>% 
+  group_by(class) %>% 
+  reframe(
+    mean_main = mean(d_main),
+    q2.5_main = quantile(d_main, 0.025),
+    q97.5_main = quantile(d_main, 0.975)
+  )
+
+# Check age10 and sex interactions
 b_tidy_draws %>% 
   group_by(class) %>% 
   reframe(
@@ -77,27 +100,41 @@ b_tidy_draws %>%
 
 # Prediction grid - age10 4-8, sex 0 and 1
 c_pred_grid <- expand.grid(
+  iter = seq(1, 12000, by = 1),
   class = c("dpp4", "glp1", "sglt2"),
   age10 = seq(4, 8, by = 0.1),
-  sex   = c(0L, 1L)
+  sex   = c(0L, 1L),
+  stringsAsFactors = FALSE
 )
 
 # Compute relative effects for log-odds and odds ratio
 c_pred_reff <- b_tidy_draws %>% 
-  inner_join(c_pred_grid) %>% 
+  inner_join(c_pred_grid %>% mutate(iter = as.character(iter))) %>% 
   mutate(
     reff_log = d_main + b_age * age10 + b_sex * sex,
     reff_or  = exp(reff_log)
   )
 
-# Check difference between average relative effect and main effect per class
+# Unadjusted effects
+c_unadj <- c("dpp4" = 0.7426, "glp1" = 0.986, "sglt2" = 0.695) # All trials
+# c_unadj <- c("dpp4" = 0.717, "glp1" = 0.857, "sglt2" = 0.665) # Sens, >=10 attr
+
+# Check difference between average relative effect and unadjusted effects
 c_pred_reff %>% 
   group_by(class) %>% 
-  reframe(
-    mean_main = mean(exp(d_main)),
-    mean_reff = mean(reff_or)
+  reframe(mean_reff = mean(reff_or)) %>% 
+  left_join(
+    c_unadj %>% 
+      enframe() %>% 
+      rename(class = name, mean_unadj = value)
   ) %>% 
-  mutate(diff = mean_main - mean_reff)
+  mutate(diff = abs(mean_reff - mean_unadj))
+
+# class mean_reff mean_unadj   diff
+# <chr>     <dbl>      <dbl>  <dbl>
+# 1 dpp4      0.713      0.743 0.0294
+# 2 glp1      0.848      0.986 0.138 
+# 3 sglt2     0.665      0.695 0.0305
 
 # Summarise and plot -----------------------------------------------------------
 
@@ -119,17 +156,15 @@ plot_reff_or <- d_sum %>%
   ) %>% 
   rename(Sex = sex) %>% 
   ggplot(aes(x = age10, y = or_mean, colour = Sex, fill = Sex)) +
-  geom_ribbon(
-    aes(ymin = or_lo, ymax = or_hi), 
-    alpha = 0.05,
-    linetype = "dashed"
-  ) +
   geom_line() +
-  geom_line(aes(y = or_lo), linetype = "dashed", alpha = 0.5) +
-  geom_line(aes(y = or_hi), linetype = "dashed", alpha = 0.5) +
+  geom_line(aes(y = or_lo), linetype = "dashed") +
+  geom_line(aes(y = or_hi), linetype = "dashed") +
   facet_wrap(~ class, scales = "free") +
   theme_classic() +
-  labs(x = "Mean age in decades", y = "Treatment effect on odds of attrition")
+  labs(
+    x = "Mean age in decades", 
+    y = "Relative treatment effect (odds of attrition)"
+  )
 
 plot_reff_or
 

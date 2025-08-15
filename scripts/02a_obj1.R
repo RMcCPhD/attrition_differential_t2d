@@ -10,7 +10,14 @@ source("scripts/00_functions.R")
 # Import tidied data
 a_imp_df <- readRDS("processed_data/tidied_agg.rds")
 
+# Inspect glp1 trials
+a_insp <- a_imp_df %>% 
+  group_by(trial_id) %>% 
+  filter(any(class == "glp1"))
+
 # Set placebo as global reference treatment
+# Test: remove trials with <10 events (365 -> 268)
+# This brings the unadjusted estimates in line with mean relative effects
 b_set_ref <- a_imp_df %>% 
   mutate(
     class = factor(class),
@@ -18,6 +25,9 @@ b_set_ref <- a_imp_df %>%
     arm_compl = arm_n - arm_attr,
     across(arm_n:arm_compl, as.integer)
   )
+  # group_by(trial_id) %>% 
+  # filter(!any(arm_attr < 10)) %>% 
+  # ungroup()
 
 # Fit hierarchical logistic regression via brms
 # Random effects for treatment class across trials
@@ -36,31 +46,13 @@ b_fit <- brm(
 
 saveRDS(b_fit, "output/obj1/brm_fit.rds")
 
-# Fitting with just IPD aggregate data
-# Remove IPD trial with 2 attrition events to see if it resolves
-# divergent transition (resolved, doesn't happen with full dataset)
-b_ipd_rm <- b_set_ref %>% filter(source == "ipd", trial_id != "NCT01769378")
-
-# Fit with just the IPD trials
-b_fit_ipd <- brm(
-  formula = arm_attr | trials(arm_n) ~ class + (1 | trial_id) + (0 + class | trial_id),
-  data = b_ipd_rm,
-  family = binomial(link = "logit"),
-  chains = 4,
-  iter = 4000,
-  warmup = 1000,
-  cores = 4,
-  seed = 123,
-  backend = "rstan",
-  control = list(adapt_delta = 0.999, max_treedepth = 15)
-)
-
-saveRDS(b_fit_ipd, "output/obj1/brm_fit_ipd.rds")
-
 # Posterior predictive checks --------------------------------------------------
 
 # Clear memory after fitting model
 gc()
+
+# Import (or run continuously using model above)
+b_fit <- readRDS("output/obj1/brm_fit.rds")
 
 # Extract posterior draws and summarise
 c_draws <- as_draws_df(b_fit)
@@ -97,7 +89,7 @@ c_draws_class_sum <- c_draws_split %>%
     lower_or = quantile(exp(draw), 0.025)
   )
 
-write_csv(c_draws_split, "output/obj1/sum_res.csv")
+write_csv(c_draws_class_sum, "output/obj1/sum_res.csv")
 
 # Plots ------------------------------------------------------------------------
 

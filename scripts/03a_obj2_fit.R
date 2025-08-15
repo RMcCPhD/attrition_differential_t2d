@@ -92,19 +92,13 @@ b_ready <- b_add_covs %>%
 c_vcov_lst <- a_imp_vcov$cov_matrix
 names(c_vcov_lst) <- unique(b_ready$nct_id)
 
-# Remove a trial with very large variance for a treatment:sex interaction
-# 89 trials remaining
-b_ready_rm <- b_ready %>% filter(nct_id != "NCT02597049")
-c_vcov_rm <- c_vcov_lst[names(c_vcov_lst) != "NCT02597049"]
-
 # Construct network
 c_network <- set_agd_regression(
-  data = b_ready_rm,
+  data = b_ready,
   study = nct_id,
   trt = trt,
   estimate = estimate,
-  cov = c_vcov_rm,
-  # regression = ~ .trt,
+  cov = c_vcov_lst,
   regression = ~ .trt * (x2 + x1),
   trt_ref = "placebo",
   trt_class = class
@@ -119,11 +113,10 @@ mdl <- nma(
   link = "identity",
   likelihood = "normal",
   class_interactions = "common",
-  # regression = ~ .trt,
   regression = ~ .trt * (x2 + x1),
-  prior_intercept = normal(scale = 2),
-  prior_trt = normal(scale = 2),
-  prior_reg = normal(scale = 1),
+  prior_intercept = normal(scale = 10),
+  prior_trt = normal(scale = 10),
+  prior_reg = normal(scale = 10),
   seed = 123,
   chains = 4, 
   cores = 4,
@@ -132,4 +125,4 @@ mdl <- nma(
   control = list(adapt_delta = 0.99, max_treedepth = 15)
 )
 
-saveRDS(mdl, "output/obj2/inter_fit_n89.rds")
+saveRDS(mdl, "output/obj2/inter_fit_n90.rds")
