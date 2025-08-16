@@ -40,7 +40,7 @@ d_mdl <- nma(
   chains = 4, 
   cores = 4,
   warmup = 1000,
-  iter = 4000
+  iter = 3000
 )
 
 # Summarise relative treatment effects

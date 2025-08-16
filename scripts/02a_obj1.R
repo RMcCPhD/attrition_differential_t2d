@@ -10,11 +10,6 @@ source("scripts/00_functions.R")
 # Import tidied data
 a_imp_df <- readRDS("processed_data/tidied_agg.rds")
 
-# Inspect glp1 trials
-a_insp <- a_imp_df %>% 
-  group_by(trial_id) %>% 
-  filter(any(class == "glp1"))
-
 # Set placebo as global reference treatment
 # This brings the unadjusted estimates in line with mean relative effects
 b_set_ref <- a_imp_df %>% 
@@ -32,12 +27,12 @@ b_fit <- brm(
   data = b_set_ref,
   family = binomial(link = "logit"),
   chains = 4,
-  iter = 4000,
+  iter = 3000,
   warmup = 1000,
   cores = 4,
   seed = 123,
   backend = "rstan",
-  control = list(adapt_delta = 0.99, max_treedepth = 15)
+  control = list(adapt_delta = 0.99)
 )
 
 saveRDS(b_fit, "output/obj1/brm_fit.rds")
@@ -84,6 +79,8 @@ c_draws_class_sum <- c_draws_split %>%
     upper_or = quantile(exp(draw), 0.975),
     lower_or = quantile(exp(draw), 0.025)
   )
+
+c_draws_class_sum
 
 write_csv(c_draws_class_sum, "output/obj1/sum_res.csv")
 

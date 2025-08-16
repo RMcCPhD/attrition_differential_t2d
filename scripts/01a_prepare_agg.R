@@ -158,5 +158,55 @@ d_join %>%
   ungroup() %>% 
   count(class)
 
+# Inspect trials with <10 attrition events
+# Test with removing these brought the glp1 estimate in line with the midpoint
+# of the adjusted relative effect
+# d_join %>% 
+#   group_by(trial_id) %>% 
+#   filter(any(arm_attr < 10)) %>% 
+  # ungroup() %>%
+  # write_csv("scratch_data/inspect_lt10_arms_raw.csv")
+
+# Import with fixes for attrition counts
+e_fixes <- read_csv("scratch_data/inspect_lt10_arms.csv") %>% 
+  mutate(
+    class = if_else(!is.na(new_class), new_class, class),
+    atc = if_else(!is.na(new_atc), new_atc, atc),
+    arm_n = if_else(!is.na(new_arm_n), new_arm_n, arm_n),
+    arm_attr = if_else(!is.na(new_arm_attr), new_arm_attr, arm_attr)
+  ) %>% 
+  select(trial_id:atc, arm_n:arm_attr)
+
+# Join fixes
+e_fixes_joined <- d_join %>% 
+  filter(!trial_id %in% e_fixes$trial_id) %>% 
+  full_join(e_fixes) %>% 
+  arrange(trial_id)
+
+# Isolate trials with A10BX - lot of these will be GLP1
+# Had done so because they were not listed on ATC
+e_fixes_joined %>% 
+  group_by(trial_id) %>% 
+  filter(any(class == "other")) %>% 
+  ungroup() %>%
+  write_csv("scratch_data/inspect_a10bx_raw.csv")
+
+# Import fixes swapping other for glp1
+f_fixes <- read_csv("scratch_data/inspect_a10bx.csv") %>% 
+  mutate(
+    class = if_else(!is.na(new_class), new_class, class),
+    atc = if_else(!is.na(new_atc), new_atc, atc)
+  ) %>% 
+  select(trial_id:atc, arm_n:arm_attr)
+
+# Join fixes
+# Remove one trial comparing glp1 to glp1
+# Remove two trials with small sample sizes
+f_fixes_joined <- e_fixes_joined %>% 
+  filter(!trial_id %in% f_fixes$trial_id) %>% 
+  full_join(f_fixes) %>% 
+  arrange(trial_id) %>% 
+  filter(trial_id != "NCT03987919")
+
 # Save
-saveRDS(d_join, "processed_data/tidied_agg.rds")
+saveRDS(f_fixes_joined, "processed_data/tidied_agg.rds")
