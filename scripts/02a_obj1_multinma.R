@@ -78,6 +78,7 @@ ggsave(
 
 # Create comparison plot
 a_imp_brm <- read_csv("output/obj1/sum_res.csv")
+a_imp_trial_level <- read_csv("output/obj1/sum_res_agg_log.csv")
 
 comp_df <- e_sum %>% 
   select(class, mean_or:hi_or) %>% 
@@ -86,6 +87,11 @@ comp_df <- e_sum %>%
     a_imp_brm %>% 
       select(class, mean_or, lo_or = lower_or, hi_or = upper_or) %>% 
       mutate(type = "brms")
+  ) %>% 
+  full_join(
+    a_imp_trial_level %>% 
+      select(class = name, mean_or = or, lo_or = q2.5_or, hi_or = q97.5_or) %>% 
+      mutate(type = "2stage")
   ) %>% 
   arrange(class)
 

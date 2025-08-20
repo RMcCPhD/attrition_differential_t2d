@@ -201,7 +201,6 @@ f_fixes <- read_csv("scratch_data/inspect_a10bx.csv") %>%
 
 # Join fixes
 # Remove one trial comparing glp1 to glp1
-# Remove two trials with small sample sizes
 f_fixes_joined <- e_fixes_joined %>% 
   filter(!trial_id %in% f_fixes$trial_id) %>% 
   full_join(f_fixes) %>% 

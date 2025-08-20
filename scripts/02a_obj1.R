@@ -11,7 +11,6 @@ source("scripts/00_functions.R")
 a_imp_df <- readRDS("processed_data/tidied_agg.rds")
 
 # Set placebo as global reference treatment
-# This brings the unadjusted estimates in line with mean relative effects
 b_set_ref <- a_imp_df %>% 
   mutate(
     class = factor(class),
