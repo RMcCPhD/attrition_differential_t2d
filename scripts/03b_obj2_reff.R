@@ -56,7 +56,10 @@ a_ipd_mean <- a_imp_ipd %>%
 # Get posterior data -----------------------------------------------------------
 
 # Get tibble of posterior draws
-b_pos <- as.data.frame(a_imp_mdl$stanfit) %>% as_tibble(rownames = "iter")
+b_pos <- as.data.frame(a_imp_mdl$stanfit) %>% 
+  select(-contains("delta")) %>% 
+  as_tibble(rownames = "iter")
+
 summary(b_pos)
 
 # Build a tidy table of draws for each newer antidiabetic
@@ -116,7 +119,7 @@ c_pred_reff <- b_tidy_draws %>%
   )
 
 # Unadjusted effects
-c_unadj <- c("dpp4" = 0.7426, "glp1" = 0.986, "sglt2" = 0.695) # All trials
+c_unadj <- c("dpp4" = 0.724, "glp1" = 0.941, "sglt2" = 0.699) # All trials
 # c_unadj <- c("dpp4" = 0.717, "glp1" = 0.857, "sglt2" = 0.665) # Sens, >=10 attr
 
 # Check difference between average relative effect and unadjusted effects
@@ -130,11 +133,20 @@ c_pred_reff %>%
   ) %>% 
   mutate(diff = abs(mean_reff - mean_unadj))
 
+# Original version
 # class mean_reff mean_unadj   diff
 # <chr>     <dbl>      <dbl>  <dbl>
 # 1 dpp4      0.713      0.743 0.0294
 # 2 glp1      0.848      0.986 0.138 
 # 3 sglt2     0.665      0.695 0.0305
+
+# Latest version with fixes to agg data (e.g. A10BX became glp1) and using
+# random effects for every model
+# class mean_reff mean_unadj   diff
+# <chr>     <dbl>      <dbl>  <dbl>
+# 1 dpp4      0.709      0.724 0.0147
+# 2 glp1      0.853      0.941 0.0883
+# 3 sglt2     0.670      0.699 0.0294
 
 # Summarise and plot -----------------------------------------------------------
 

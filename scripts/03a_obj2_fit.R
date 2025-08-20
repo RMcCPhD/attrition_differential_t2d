@@ -109,7 +109,7 @@ plot(c_network)
 # Fit NMA model
 mdl <- nma(
   c_network,
-  trt_effects = "fixed",
+  trt_effects = "random",
   link = "identity",
   likelihood = "normal",
   class_interactions = "common",
@@ -121,8 +121,8 @@ mdl <- nma(
   chains = 4, 
   cores = 4,
   warmup = 1000,
-  iter = 4000,
-  control = list(adapt_delta = 0.99, max_treedepth = 15)
+  iter = 3000,
+  control = list(adapt_delta = 0.95)
 )
 
 saveRDS(mdl, "output/obj2/inter_fit_n90.rds")
