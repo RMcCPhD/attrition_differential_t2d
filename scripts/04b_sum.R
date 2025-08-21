@@ -209,6 +209,3 @@ b_class_fixed %>%
   arrange(source, main_class, desc(n)) %>% 
   print(n = 42)
 
-# Attrition --------------------------------------------------------------------
-
-
