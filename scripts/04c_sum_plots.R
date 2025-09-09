@@ -53,6 +53,10 @@ plot_rates <- b_agg %>%
       "glp1" ~ "GLP1",
       "sglt2" ~ "SGLT2",
       .default = trttype
+    ),,
+    trttype = factor(
+      trttype,
+      levels = c("Classic ADs", "DPP4", "GLP1", "SGLT2", "Placebo")
     ),
     exp = case_match(
       exp,
@@ -74,7 +78,7 @@ plot_rates <- b_agg %>%
     )
   ) +
   facet_wrap(~exp, scales = "free") +
-  labs(x = "Attrition rate", y = NULL, colour = "Treatment type") +
+  labs(x = "Attrition proportion", y = NULL, colour = "Treatment type") +
   theme_classic()
 
 plot_rates

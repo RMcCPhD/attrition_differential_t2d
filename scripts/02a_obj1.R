@@ -77,7 +77,21 @@ c_draws_class_sum <- c_draws_split %>%
     median_or = median(exp(draw)),
     upper_or = quantile(exp(draw), 0.975),
     lower_or = quantile(exp(draw), 0.025)
-  )
+  ) %>% 
+  mutate(
+    class_full = case_match(
+      class,
+      "a_gluc" ~ "Alpha-glucosidase",
+      "biguanides" ~ "Biguanide",
+      "dpp4" ~ "DPP4",
+      "glp1" ~ "GLP1",
+      "insulin" ~ "Insulin",
+      "sglt2" ~ "SGLT2",
+      "sulf" ~ "Sulfonylurea",
+      "thia" ~ "Thiazolidinedione"
+    )
+  ) %>% 
+  mutate(across(mean_log:lower_or, ~ round(., 3)))
 
 c_draws_class_sum
 
@@ -118,13 +132,13 @@ ggsave(
 
 # Plot odds ratio
 plot_odds <- c_draws_class_sum %>% 
-  ggplot(aes(x = mean_or, xmin = lower_or, xmax = upper_or, y = fct_rev(class))) +
+  ggplot(aes(x = mean_or, xmin = lower_or, xmax = upper_or, y = fct_rev(class_full))) +
   geom_point(position = position_dodge(width = 0.5)) +
   geom_linerange(position = position_dodge(width = 0.5)) +
   geom_vline(xintercept = 1, colour = "red") +
-  theme_bw() +
+  theme_classic() +
   scale_x_continuous(n.breaks = 10) +
-  labs(x = "Mean odds ratio (95% credible intervals)", y = "Treatment class")
+  labs(x = "Mean odds ratio (95% credible intervals)", y = NULL)
 
 plot_odds
 

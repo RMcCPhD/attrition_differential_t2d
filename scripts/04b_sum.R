@@ -16,8 +16,13 @@ a_imp_sum %>% count(trial_id, source) %>% count(source)
 # Proportion female
 a_imp_sum %>% 
   reframe(
-    n_female = sum(n) - sum(n_male, na.rm = TRUE),
-    pcnt_female = 1 - sum(n_male, na.rm = TRUE) / sum(n)
+    n = n,
+    female_p = 1 - male,
+    female_n = round(n * (1 - male))
+  ) %>% 
+  reframe(
+    female_sum = sum(female_n),
+    female = sum(female_n) / sum(n)
   )
 
 # Weighted mean age
@@ -50,8 +55,14 @@ a_imp_sum %>% group_by(source) %>% reframe(n = sum(n))
 a_imp_sum %>% 
   group_by(source) %>% 
   reframe(
-    n_female = sum(n) - sum(n_male, na.rm = TRUE),
-    pcnt_female = 1 - sum(n_male, na.rm = TRUE) / sum(n)
+    n = n,
+    female_p = 1 - male,
+    female_n = round(n * (1 - male))
+  ) %>% 
+  group_by(source) %>% 
+  reframe(
+    female_sum = sum(female_n),
+    female = sum(female_n) / sum(n)
   )
 
 # Weighted mean age
@@ -136,7 +147,9 @@ b_class_mt1 <- b_class %>%
 # write_csv(b_class_mt1, "scratch_data/main_class_mt1.csv")
 
 # Join fixes for main treatment class (checked against ctgov for 28 trials)
-b_imp_fix <- read_csv("scratch_data/fixed_main_class_mt1.csv")
+b_imp_fix <- read_csv("scratch_data/fixed_main_class_mt1.csv") %>% 
+  rename(male = n_male) %>% 
+  mutate(male = male/n)
 
 b_class_fixed <- b_class %>% 
   filter(!(trial_id %in% b_imp_fix$trial_id)) %>% 
@@ -153,8 +166,14 @@ b_class_fixed %>% count(trial_id, source, main_class) %>% count(source, main_cla
 b_class_fixed %>% 
   group_by(source, main_class) %>% 
   reframe(
-    n_female = sum(n) - sum(n_male, na.rm = TRUE),
-    pcnt_female = 1 - sum(n_male, na.rm = TRUE) / sum(n)
+    n = n,
+    female_p = 1 - male,
+    female_n = round(n * (1 - male))
+  ) %>% 
+  group_by(source, main_class) %>% 
+  reframe(
+    female_sum = sum(female_n),
+    female = sum(female_n) / sum(n)
   )
 
 # Weighted mean age

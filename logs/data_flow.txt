@@ -17,7 +17,7 @@ Removed trials where there was only one treatment class (i.e. dpp4 vs dpp4)
 AACT: 296 -> 272
 
 Objective 1:
-388 trials - 296 AACT, 92 IPD
+364 trials - 272 AACT, 92 IPD
 
 Objective 2:
 92 IPD

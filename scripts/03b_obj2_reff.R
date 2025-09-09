@@ -30,13 +30,22 @@ a_imp_ipd <- bind_rows(readRDS("data/agg_ipd_hba1c.Rds")$ipd) %>%
   rename(age10 = age)
 
 # Check age-sex distributions - normal, similar between sexes
-a_imp_ipd %>%
+plot_agesex_dist <- a_imp_ipd %>%
+  mutate(sex = if_else(sex == 0L, "Female", "Male")) %>% 
   ggplot(aes(x = age10, fill = as.factor(sex))) + 
   geom_density(colour = "black", alpha = 0.3) + 
   facet_wrap(~class, scales = "free_y") +
   scale_x_continuous(n.breaks = 6) +
   theme_classic() +
   labs(x = "Age measured in decades", y = "Density", fill = "Sex")
+
+ggsave(
+  "output/plot_agesex_dist_ipd.png",
+  plot_agesex_dist,
+  width = 8,
+  height = 8,
+  units = "in"
+)
 
 # Get class age10 means
 a_ipd_mean <- a_imp_ipd %>% 
@@ -52,6 +61,67 @@ a_ipd_mean <- a_imp_ipd %>%
 # 1 dpp4      5.66
 # 2 glp1      5.72
 # 3 sglt2     5.57
+
+# Examine interaction posterior estimates --------------------------------------
+
+# Get summary data
+b_sum_inter <- summary(a_imp_mdl) %>%
+  as_tibble() %>%
+  filter(grepl("beta", parameter)) %>%
+  mutate(
+    parameter = gsub("\\[|\\]", "", parameter),
+    parameter = gsub("beta", "", parameter)
+  ) %>%
+  separate(
+    parameter,
+    into = c("term", "class"),
+    sep = "\\."
+  ) %>%
+  mutate(
+    class = gsub("trtclass", "", class),
+    term = gsub("\\:", "", term),
+    term = case_match(
+      term,
+      "x1TRUE" ~ "sexMale",
+      "x2" ~ "age10",
+      .default = term
+    ),
+    or_mean = exp(mean),
+    or_low = exp(`2.5%`),
+    or_hi = exp(`97.5%`)
+  ) %>% 
+  rename(
+    logor_mean = mean,
+    logor_low = `2.5%`,
+    logor_hi = `97.5%`
+  ) %>% 
+  mutate(across(logor_mean:or_hi, ~ round(., 3))) %>% 
+  select(class, term, contains("logor"), starts_with("or"), Bulk_ESS:Rhat)
+
+# Save
+write_csv(b_sum_inter, "output/obj2/inter_sum.csv")
+
+# Plot log-odds
+plot_log <- b_sum_inter %>%
+  filter(!is.na(class), class %in% c("dpp4", "glp1", "sglt2")) %>%
+  ggplot(aes(x = or_mean, xmin = or_low, xmax = or_hi, y = term)) +
+  geom_point(position = position_dodge(width = 0.5)) +
+  geom_linerange(position = position_dodge(width = 0.5)) +
+  geom_vline(xintercept = 1, colour = "red", linetype = "dashed") +
+  facet_wrap(~class, scales = "free", ncol = 1) +
+  theme_classic() +
+  scale_x_continuous(limits = c(0.8, 1.25)) +
+  labs(x = "Mean log-odds (95% credible intervals)", y = NULL)
+
+plot_log
+
+ggsave(
+  "output/obj2/plots/plot_inter.png",
+  plot_log,
+  width = 4,
+  height = 4,
+  units = "in"
+)
 
 # Get posterior data -----------------------------------------------------------
 
@@ -158,7 +228,11 @@ d_sum <- c_pred_reff %>%
     or_med   = median(reff_or),
     or_lo    = quantile(reff_or, 0.025),
     or_hi    = quantile(reff_or, 0.975),
-  )
+  ) %>% 
+  mutate(across(or_mean:or_hi, ~ round(., 3)))
+
+# Save
+write_csv(d_sum, "output/obj2/reff_sum.csv")
 
 # Plot
 plot_reff_or <- d_sum %>% 
