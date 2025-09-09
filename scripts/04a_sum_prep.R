@@ -2,21 +2,21 @@
 source("scripts/00_config.R")
 source("scripts/00_packages.R")
 
-# Import agg data (387 trials - 295 ctgov, 92 ipd)
-a_imp_387 <- readRDS("processed_data/tidy_agg_n391.rds")
+# Import agg data (364 trials - 272 agg, 92 ipd)
+a_imp_364 <- readRDS("processed_data/tidied_agg.rds")
 a_imp_92 <- read_csv("vivli/agg_n92.csv")
 
 # Import characteristics table from nma_agesex_public
 # Only for dattr trials
 a_imp_char <- read_csv("data/base_dsp.csv") %>% 
   inner_join(
-    a_imp_387 %>% 
+    a_imp_364 %>% 
       select(trial_id) %>% 
       distinct()
   )
 
 # One trial missing - NCT04170998 (not missing, not removing in case I forgot the context)
-a_imp_387 %>% 
+a_imp_364 %>% 
   select(trial_id) %>% 
   distinct() %>% 
   anti_join(a_imp_char %>% select(trial_id) %>% distinct())
@@ -66,7 +66,7 @@ b_joined %>% reframe(across(everything(), ~ sum(is.na(.))))
 c_imp_nma_df <- bind_rows(readRDS("data/agg_ipd_hba1c.Rds")$agg) %>% 
   select(nct_id, arm_lvl, arm_id_unq) %>% 
   rename(trial_id = nct_id) %>% 
-  inner_join(a_imp_387 %>% select(trial_id) %>% distinct())
+  inner_join(a_imp_364 %>% select(trial_id) %>% distinct())
 
 # Get ipd arms
 c_imp_ipd <- read_csv("data/arm_lvl_info_as_analysed.csv") %>% 
@@ -149,20 +149,63 @@ d_class <- c_fixed_nas %>%
     )
   )
 
+# Deal with some missingness in age and male prop
+e_fix_na <- d_class %>% 
+  mutate(
+    pcnt_male = if_else(
+      is.na(pcnt_male) & !is.na(n_male), 
+      (n_male/n) * 100,
+      pcnt_male
+    ),
+    male = round(pcnt_male / 100, 2)
+  ) %>% 
+  select(-n_male, -pcnt_male) %>% 
+  select(trial_id:arm_id, atc:class, everything())
+
+e_fix_na %>% reframe(across(everything(), ~ sum(is.na(.))))
+
+# Manually find missing age and male prop among small number of trials
+# write_csv(
+#   e_fix_na %>% 
+#     filter(is.na(mean_age) | is.na(sd_age) | is.na(male)),
+#   "scratch_data/n17_na_age_or_sex.csv"
+# )
+
+# Import manual fixes, join with data
+# Fix n=2 with typo for standard deviation of age
+e_imp_fix <- e_fix_na %>% 
+  anti_join(
+    read_csv("scratch_data/n17_found_na_age_or_sex.csv") %>% 
+      select(trial_id, arm_id)
+  ) %>% 
+  full_join(
+    read_csv("scratch_data/n17_found_na_age_or_sex.csv") %>% 
+      select(-note)
+  ) %>% 
+  arrange(trial_id) %>% 
+  mutate(
+    sd_age = case_when(
+      trial_id == "NCT02413398" & arm_id == "uaa11126" ~ 6.22,
+      trial_id == "NCT02413398" & arm_id == "uaa11127" ~ 6.49,
+      TRUE ~ sd_age
+    )
+  )
+
+e_imp_fix %>% reframe(across(everything(), ~ sum(is.na(.))))
+
 # Save arm lookup (used here and attrisk)
-write_csv(
-  d_class %>% select(trial_id:arm_id, atc, class),
-  "created_metadata/arm_id_trt.csv"
-)
+# write_csv(
+#   d_class %>% select(trial_id:arm_id, atc, class),
+#   "created_metadata/arm_id_trt.csv"
+# )
 
 # Add events -------------------------------------------------------------------
 
 # Join aggregate and ipd events
 # Tidy atc codes
-e_events <- a_imp_387 %>% 
+e_events <- a_imp_364 %>% 
   filter(source == "agg") %>%
-  select(trial_id, atc_short, arm_n, arm_attr) %>% 
-  rename(atc = atc_short) %>% 
+  select(trial_id, atc, arm_n, arm_attr) %>% 
   full_join(
     a_imp_92 %>% 
       select(nct_id, arm_lvl, n, attr) %>% 
@@ -182,25 +225,21 @@ e_events <- a_imp_387 %>%
 
 # Collapse treatment class characteristics for joining events
 # Compute weighted mean age and total number of males per arm
-e_clp <- d_class %>% 
+e_clp <- e_imp_fix %>% 
   group_by(trial_id, atc, class) %>% 
   mutate(
-    wgt_mean_age = mean_age * n,
-    n_male = case_when(
-      !is.na(n_male) ~ n_male,
-      TRUE ~ n * (pcnt_male / 100)
-    )
+    wgt_mean_age = mean_age * n
   ) %>% 
   reframe(
     n = sum(n),
-    mean_a %>% ge = sum(wgt_mean_age) / n,
-    n_male = round(sum(n_male))
+    mean_age = sum(wgt_mean_age) / n,
+    male = round(mean(male), 2)
   )
 
 # Add pooled standard deviation
 e_clp_add_sd <- e_clp %>% 
   left_join(
-    d_class %>% 
+    e_imp_fix %>% 
       group_by(trial_id, atc, class) %>% 
       reframe(
         num = sum((n - 1) * sd_age ^ 2),
@@ -228,16 +267,27 @@ f_add_events <- e_clp_add_sd %>%
 # 19 missing sd age
 # 15 missing male count
 # Look for these as manual inputs or use na.rm if not obtainable
+# UPDATE
+# Using nma extractions, no missingness - 3 missing attrition counts
 f_add_events %>% reframe(across(everything(), ~ sum(is.na(.))))
 
+# Add missing attrition counts
 # Distinguish source
 g_add_source <- f_add_events %>% 
   mutate(
+    attr = case_when(
+      trial_id == "NCT01289119" & n == 98 & is.na(attr) ~ 9,
+      trial_id == "NCT01289119" & n == 63 & is.na(attr) ~ 5,
+      trial_id == "NCT04196231" & n == 101 & is.na(attr) ~ 0,
+      TRUE ~ attr
+    ),
     source = case_when(
       trial_id %in% a_imp_92$nct_id ~ "ipd",
       TRUE ~ "agg"
     )
   )
+
+g_add_source %>% reframe(across(everything(), ~ sum(is.na(.))))
 
 # Save 
 write_csv(g_add_source, "output/sum/sum_data.csv")

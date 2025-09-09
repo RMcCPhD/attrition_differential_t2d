@@ -13,11 +13,11 @@ Removed three trials where the comparator was multiple older blood glucose-lower
 AACT: 299 -> 296
 
 Modification 3
-Removed two trials where interaction estimates were greater than +/- 10, or where standard errors were greater than +/- 2
-IPD: 92 -> 56
+Removed trials where there was only one treatment class (i.e. dpp4 vs dpp4)
+AACT: 296 -> 272
 
 Objective 1:
 388 trials - 296 AACT, 92 IPD
 
 Objective 2:
-56 IPD
+92 IPD

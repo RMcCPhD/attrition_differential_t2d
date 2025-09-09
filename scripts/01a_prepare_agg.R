@@ -138,8 +138,9 @@ d_join <- b_aact_clps %>%
   filter(length(unique(class)) > 1) %>% 
   ungroup()
 
-# No NAs, 388 trials (296 aact, 92 ipd), 9 treatment classes and placebo
+# No NAs, 365 trials (273 aact, 92 ipd), 9 treatment classes and placebo
 checkNA(d_join)
+d_join %>% count(trial_id)
 d_join %>% count(trial_id, source) %>% count(source)
 d_join %>% count(class)
 
@@ -183,6 +184,8 @@ e_fixes_joined <- d_join %>%
   full_join(e_fixes) %>% 
   arrange(trial_id)
 
+e_fixes_joined %>% count(trial_id, source) %>% count(source)
+
 # Isolate trials with A10BX - lot of these will be GLP1
 # Had done so because they were not listed on ATC
 e_fixes_joined %>% 
@@ -206,6 +209,8 @@ f_fixes_joined <- e_fixes_joined %>%
   full_join(f_fixes) %>% 
   arrange(trial_id) %>% 
   filter(trial_id != "NCT03987919")
+
+f_fixes_joined %>% count(trial_id, source) %>% count(source)
 
 # Save
 saveRDS(f_fixes_joined, "processed_data/tidied_agg.rds")
