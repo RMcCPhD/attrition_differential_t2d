@@ -47,21 +47,21 @@ plot_rates <- b_agg %>%
   mutate(
     trttype = case_match(
       trttype,
-      "classic" ~ "Classic ADs",
+      "classic" ~ "Older ADs",
       "placebo" ~ "Placebo",
       "dpp4" ~ "DPP4",
-      "glp1" ~ "GLP1",
+      "glp1" ~ "GLP-1",
       "sglt2" ~ "SGLT2",
       .default = trttype
     ),,
     trttype = factor(
       trttype,
-      levels = c("Classic ADs", "DPP4", "GLP1", "SGLT2", "Placebo")
+      levels = c("DPP4", "GLP-1", "SGLT2", "Older ADs", "Placebo")
     ),
     exp = case_match(
       exp,
       "dpp4" ~ "DPP4",
-      "glp1" ~ "GLP1",
+      "glp1" ~ "GLP-1",
       "sglt2" ~ "SGLT2"
     )
   ) %>% 
@@ -70,9 +70,9 @@ plot_rates <- b_agg %>%
   geom_point() +
   scale_color_manual(
     values = c(
-      "Classic ADs" = "forestgreen",
+      "Older ADs" = "forestgreen",
       "DPP4" = "steelblue",
-      "GLP1" = "gold1",
+      "GLP-1" = "gold1",
       "SGLT2" = "darkorange1",
       "Placebo" = "orangered1"
     )

@@ -125,4 +125,4 @@ mdl <- nma(
   control = list(adapt_delta = 0.95)
 )
 
-saveRDS(mdl, "output/obj2/inter_fit_n90.rds")
+saveRDS(mdl, "output/obj2/inter_fit_n92.rds")

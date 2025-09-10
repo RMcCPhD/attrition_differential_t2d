@@ -82,8 +82,8 @@ b_sum_inter <- summary(a_imp_mdl) %>%
     term = gsub("\\:", "", term),
     term = case_match(
       term,
-      "x1TRUE" ~ "sexMale",
-      "x2" ~ "age10",
+      "x1TRUE" ~ "Male",
+      "x2" ~ "Age",
       .default = term
     ),
     or_mean = exp(mean),
@@ -101,23 +101,24 @@ b_sum_inter <- summary(a_imp_mdl) %>%
 # Save
 write_csv(b_sum_inter, "output/obj2/inter_sum.csv")
 
-# Plot log-odds
-plot_log <- b_sum_inter %>%
+# Plot odds ratio
+plot_or <- b_sum_inter %>%
+  mutate(term = factor(term, levels = c("Age", "Male"))) %>% 
   filter(!is.na(class), class %in% c("dpp4", "glp1", "sglt2")) %>%
-  ggplot(aes(x = or_mean, xmin = or_low, xmax = or_hi, y = term)) +
+  ggplot(aes(x = or_mean, xmin = or_low, xmax = or_hi, y = fct_rev(term))) +
   geom_point(position = position_dodge(width = 0.5)) +
   geom_linerange(position = position_dodge(width = 0.5)) +
   geom_vline(xintercept = 1, colour = "red", linetype = "dashed") +
   facet_wrap(~class, scales = "free", ncol = 1) +
   theme_classic() +
   scale_x_continuous(limits = c(0.8, 1.25)) +
-  labs(x = "Mean log-odds (95% credible intervals)", y = NULL)
+  labs(x = "Mean odds ratio (95% credible intervals)", y = NULL)
 
-plot_log
+plot_or
 
 ggsave(
   "output/obj2/plots/plot_inter.png",
-  plot_log,
+  plot_or,
   width = 4,
   height = 4,
   units = "in"
@@ -229,7 +230,16 @@ d_sum <- c_pred_reff %>%
     or_lo    = quantile(reff_or, 0.025),
     or_hi    = quantile(reff_or, 0.975),
   ) %>% 
-  mutate(across(or_mean:or_hi, ~ round(., 3)))
+  mutate(
+    across(or_mean:or_hi, ~ round(., 3)),
+    class = case_match(
+      class,
+      "dpp4" ~ "DPP4",
+      "glp1" ~ "GLP-1",
+      "sglt2" ~ "SGLT2"
+    ),
+    class = factor(class, levels = c("DPP4", "GLP-1", "SGLT2"))
+  )
 
 # Save
 write_csv(d_sum, "output/obj2/reff_sum.csv")
@@ -249,7 +259,7 @@ plot_reff_or <- d_sum %>%
   theme_classic() +
   labs(
     x = "Mean age in decades", 
-    y = "Relative treatment effect (odds of attrition)"
+    y = "Relative effect (attrition odds)"
   )
 
 plot_reff_or

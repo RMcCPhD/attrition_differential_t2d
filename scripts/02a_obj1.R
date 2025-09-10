@@ -84,7 +84,7 @@ c_draws_class_sum <- c_draws_split %>%
       "a_gluc" ~ "Alpha-glucosidase",
       "biguanides" ~ "Biguanide",
       "dpp4" ~ "DPP4",
-      "glp1" ~ "GLP1",
+      "glp1" ~ "GLP-1",
       "insulin" ~ "Insulin",
       "sglt2" ~ "SGLT2",
       "sulf" ~ "Sulfonylurea",
@@ -135,7 +135,7 @@ plot_odds <- c_draws_class_sum %>%
   ggplot(aes(x = mean_or, xmin = lower_or, xmax = upper_or, y = fct_rev(class_full))) +
   geom_point(position = position_dodge(width = 0.5)) +
   geom_linerange(position = position_dodge(width = 0.5)) +
-  geom_vline(xintercept = 1, colour = "red") +
+  geom_vline(xintercept = 1, colour = "red", linetype = "dashed") +
   theme_classic() +
   scale_x_continuous(n.breaks = 10) +
   labs(x = "Mean odds ratio (95% credible intervals)", y = NULL)
