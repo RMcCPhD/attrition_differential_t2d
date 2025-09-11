@@ -1,6 +1,5 @@
 
 # Prepare supplementary tables
-
 source("scripts/00_config.R")
 source("scripts/00_packages.R")
 
@@ -113,7 +112,7 @@ ggsave(
 
 # Supplementary table 2 - interactions for attrition ---------------------------
 
-a_imp_fit2 <- readRDS("output/obj2/inter_fit_n92.rds")
+a_imp_fit2 <- readRDS("output/obj2/inter_fit_n90.rds")
 
 st2_sum <- summary(a_imp_fit2) %>%
   as_tibble() %>%
@@ -161,3 +160,110 @@ st2_tidy <- st2_sum %>%
 
 st2_tidy
 write_csv(st2_tidy, "output/suppl/supp_tbl2.csv")
+
+# Supplementary table 3 - model heterogeneity ----------------------------------
+
+# Import models
+a_imp_inter <- readRDS("output/obj2/inter_fit_n90.rds")
+
+a_inter_tau <- summary(a_imp_inter) %>% 
+  as_tibble() %>%
+  filter(parameter == "tau")
+
+# Supplementary figure 3 - Cox vs logreg ---------------------------------------
+
+# Import tidied model results
+a_imp_res <- read_csv("vivli/res_n92.csv") %>% 
+  group_by(spec) %>% 
+  nest()
+
+# Generate plots
+e_plot_main <- a_imp_res$data[[1]] %>% 
+  filter(term != "(Intercept)") %>% 
+  ggplot(
+    aes(
+      x = nct_id,
+      y = estimate,
+      ymin = lci,
+      ymax = uci,
+      colour = modeltype
+    )
+  ) +
+  geom_point(position = position_dodge(width = 0.5)) + 
+  geom_linerange(position = position_dodge(width = 0.5)) +
+  geom_hline(yintercept = 0, colour = "red") +
+  facet_wrap(~term, scales = "free", ncol = 4) +
+  theme_classic() +
+  coord_flip() +
+  labs(x = NULL, y = "Log estimate")
+
+e_plot_main
+
+ggsave(
+  "output/suppl/supp_fig4a.png",
+  e_plot_main,
+  width = 12,
+  height = 10,
+  units = "in"
+)
+
+e_plot_cov <- a_imp_res$data[[2]] %>% 
+  filter(term != "(Intercept)") %>% 
+  ggplot(
+    aes(
+      x = nct_id,
+      y = estimate,
+      ymin = lci,
+      ymax = uci,
+      colour = modeltype
+    )
+  ) +
+  geom_point(position = position_dodge(width = 0.5)) + 
+  geom_linerange(position = position_dodge(width = 0.5)) +
+  geom_hline(yintercept = 0, colour = "red") +
+  facet_wrap(~term, scales = "free", ncol = 4) +
+  theme_classic() +
+  coord_flip() +
+  labs(x = NULL, y = "Log estimate")
+
+e_plot_cov
+
+ggsave(
+  "output/suppl/supp_fig4b.png",
+  e_plot_cov,
+  width = 12,
+  height = 10,
+  units = "in"
+)
+
+e_plot_inter <- a_imp_res$data[[3]] %>% 
+  filter(!std.error > 11 & term != "(Intercept)") %>%
+  ggplot(
+    aes(
+      x = nct_id,
+      y = estimate,
+      ymin = lci,
+      ymax = uci,
+      colour = modeltype
+    )
+  ) +
+  geom_point(position = position_dodge(width = 0.5)) + 
+  geom_linerange(position = position_dodge(width = 0.5)) +
+  geom_hline(yintercept = 0, colour = "red") +
+  facet_wrap(~term, scales = "free", ncol = 4) +
+  theme_classic() +
+  theme(
+    axis.text.y = element_blank()
+  ) +
+  coord_flip() +
+  labs(x = NULL, y = "Log estimate")
+
+e_plot_inter
+
+ggsave(
+  "output/suppl/supp_fig4c.png",
+  e_plot_inter,
+  width = 12,
+  height = 10,
+  units = "in"
+)
