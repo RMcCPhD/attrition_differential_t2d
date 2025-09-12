@@ -116,50 +116,50 @@ a_imp_fit2 <- readRDS("output/obj2/inter_fit_n90.rds")
 
 st2_sum <- summary(a_imp_fit2) %>%
   as_tibble() %>%
-  filter(grepl("beta", parameter)) %>% 
+  filter(grepl("^beta|^d", parameter)) %>% 
+  filter(!grepl("delta", parameter)) %>% 
   mutate(
     parameter = gsub("\\[|\\]", "", parameter),
-    parameter = gsub("beta", "", parameter)
+    parameter = gsub("beta|d\\[", "", parameter)
   ) %>%
   separate(
     parameter,
-    into = c("term", "class"),
+    into = c("inter", "term"),
     sep = "\\."
-  ) %>% 
-  filter(!is.na(class))
+  )
 
 st2_tidy <- st2_sum %>% 
+  filter(
+    !grepl("agluc|biguan|insul|sulf|thia", term),
+    !grepl("A10A|A10BA|A10BB|A10BF|A10BG", inter)
+  ) %>% 
   mutate(
-    term = gsub("\\:", "", term),
-    term = case_match(term, "x2" ~ "Age", "x1TRUE" ~ "Male"),
-    class = gsub("trtclass", "", class),
+    inter = gsub("\\:|d", "", inter),
+    inter = case_match(
+      inter, 
+      "x2" ~ "Age", 
+      "x1TRUE" ~ "Male",
+      "A10BH" ~ "DPP4",
+      "A10BJ" ~ "GLP-1",
+      "A10BK" ~ "SGLT2",
+    ),
+    class = gsub("trtclass", "", term),
     class = case_match(
       class,
-      "agluc" ~ "Alpha-glucosidase",
-      "biguanide" ~ "Biguanides",
       "dpp4" ~ "DPP4",
       "glp1" ~ "GLP-1",
-      "insulin" ~ "Insulin",
-      "sglt2" ~ "SGLT2",
-      "sulf" ~ "Sulfonylurea",
-      "thia" ~ "Thiazolidinedione"
+      "sglt2" ~ "SGLT2"
     ),
-    class = factor(
-      class,
-      levels = c(
-        "DPP4", "GLP-1", "SGLT2",
-        "Alpha-glucosidase", "Biguanides", "Insulin", "Sulfonylurea",
-        "Thiazolidinedione"
-      )
-    ),
+    class = if_else(inter %in% c("DPP4", "GLP-1", "SGLT2"), inter, class),
+    class = if_else(is.na(class), "Adj", class),
+    class = factor(class, levels = c("Adj", "DPP4", "GLP-1", "SGLT2")),
     across(mean:Rhat, ~ round(., 3))
   ) %>% 
   select(-Tail_ESS) %>%
-  select(term:`2.5%`, `97.5%`, Rhat, Bulk_ESS) %>% 
-  arrange(class, term)
+  select(class, inter, mean:`2.5%`, `97.5%`, Rhat, Bulk_ESS)
 
 st2_tidy
-write_csv(st2_tidy, "output/suppl/supp_tbl2.csv")
+write_csv(st2_tidy, "output/suppl/tbl2.csv")
 
 # Supplementary table 3 - model heterogeneity ----------------------------------
 

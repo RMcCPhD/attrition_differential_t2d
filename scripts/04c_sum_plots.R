@@ -108,9 +108,7 @@ plot_rates <- b_agg_index %>%
   scale_x_continuous(limits = c(0, 60), n.breaks = 6) +
   theme_classic() +
   theme(
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank()
-    # axis.text.y = element_text(size = 20, colour = "white")
+    axis.text.y = element_text(size = 15, colour = "white")
   )
 
 plot_rates
@@ -118,7 +116,8 @@ plot_rates
 ggsave(
   "output/sum/plot_rates.png",
   plot_rates,
-  width = 12,
+  width = 14,
   height = 8,
   units = "in"
 )
+
