@@ -132,6 +132,16 @@ ggsave(
 
 # Plot odds ratio
 plot_odds <- c_draws_class_sum %>% 
+  mutate(
+    class_full = factor(
+      class_full,
+      levels = c(
+        "DPP4", "GLP-1", "SGLT2",
+        "Alpha-glucosidase", "Biguanide", "Insulin", "Sulfonylurea",
+        "Thiazolidinedione"
+      )
+    )
+  ) %>% 
   ggplot(aes(
     x = log(mean_or), xmin = log(lower_or), xmax = log(upper_or),
     y = fct_rev(class_full)
