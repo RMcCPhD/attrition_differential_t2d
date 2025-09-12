@@ -244,29 +244,83 @@ d_sum <- c_pred_reff %>%
 # Save
 write_csv(d_sum, "output/obj2/reff_sum.csv")
 
-# Plot
-plot_reff_or <- d_sum %>% 
-  mutate(
-    sex = case_match(sex, 0L ~ "Female", 1L ~ "Male"),
-    sex = factor(sex, levels = c("Female", "Male"))
-  ) %>% 
-  rename(Sex = sex) %>% 
-  ggplot(aes(x = age10, y = or_mean, colour = Sex, fill = Sex)) +
-  geom_line() +
-  geom_line(aes(y = or_lo), linetype = "dashed") +
-  geom_line(aes(y = or_hi), linetype = "dashed") +
+# Rug data
+ipd_rug <- a_imp_ipd %>%
+  transmute(
+    class = dplyr::recode(class, dpp4 = "DPP4", glp1 = "GLP-1", sglt2 = "SGLT2"),
+    sex,
+    age_years = age10 * 10
+  )
+
+# Plot females
+plot_reff_or_f <- d_sum %>% 
+  filter(sex == 0L) %>% 
+  mutate(age10 = age10 * 10) %>% 
+  ggplot(aes(x = age10, y = or_mean, ymin = or_lo, ymax = or_hi)) +
+  geom_line(colour = "steelblue") +
+  geom_line(aes(y = or_lo), colour = "steelblue", linetype = "dashed") +
+  geom_line(aes(y = or_hi), colour = "steelblue", linetype = "dashed") +
+  geom_ribbon(fill = "steelblue", alpha = 0.1) +
+  geom_hline(yintercept = 1, colour = "red", linetype = "dashed") +
+  scale_x_continuous(limits = c(40, 80)) +
+  scale_y_continuous(limits = c(0.4, 1.3)) +
+  geom_rug(
+    data = ipd_rug %>% dplyr::filter(sex == 0L),
+    inherit.aes = FALSE,
+    aes(x = age_years),
+    sides = "b",
+    alpha = 0.1,
+    colour = "black"
+  ) +
   facet_wrap(~ class, scales = "free") +
   theme_classic() +
   labs(
-    x = "Mean age in decades", 
-    y = "Relative effect (attrition odds)"
+    x = "Mean female age", 
+    y = "Relative effect for attrition (odds ratio)"
   )
 
-plot_reff_or
+plot_reff_or_f
 
 ggsave(
-  "output/obj2/plots/plot_or_new.png",
-  plot_reff_or,
+  "output/obj2/plots/plot_or_female.png",
+  plot_reff_or_f,
+  width = 10,
+  height = 4,
+  units = "in"
+)
+
+# Plot males
+plot_reff_or_m <- d_sum %>% 
+  filter(sex == 1L) %>% 
+  mutate(age10 = age10 * 10) %>% 
+  ggplot(aes(x = age10, y = or_mean, ymin = or_lo, ymax = or_hi)) +
+  geom_line(colour = "steelblue") +
+  geom_line(aes(y = or_lo), colour = "steelblue", linetype = "dashed") +
+  geom_line(aes(y = or_hi), colour = "steelblue", linetype = "dashed") +
+  geom_ribbon(fill = "steelblue", alpha = 0.1) +
+  geom_hline(yintercept = 1, colour = "red", linetype = "dashed") +
+  scale_x_continuous(limits = c(40, 80)) +
+  scale_y_continuous(limits = c(0.4, 1.2)) +
+  geom_rug(
+    data = ipd_rug %>% dplyr::filter(sex == 1L),
+    inherit.aes = FALSE,
+    aes(x = age_years),
+    sides = "b",
+    alpha = 0.1,
+    colour = "black"
+  ) +
+  facet_wrap(~ class, scales = "free") +
+  theme_classic() +
+  labs(
+    x = "Mean male age", 
+    y = "Relative effect for attrition (odds ratio)"
+  )
+
+plot_reff_or_m
+
+ggsave(
+  "output/obj2/plots/plot_or_male.png",
+  plot_reff_or_m,
   width = 10,
   height = 4,
   units = "in"

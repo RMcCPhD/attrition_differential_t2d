@@ -132,12 +132,15 @@ ggsave(
 
 # Plot odds ratio
 plot_odds <- c_draws_class_sum %>% 
-  ggplot(aes(x = mean_or, xmin = lower_or, xmax = upper_or, y = fct_rev(class_full))) +
+  ggplot(aes(
+    x = log(mean_or), xmin = log(lower_or), xmax = log(upper_or),
+    y = fct_rev(class_full)
+  )) +
   geom_point(position = position_dodge(width = 0.5)) +
   geom_linerange(position = position_dodge(width = 0.5)) +
-  geom_vline(xintercept = 1, colour = "red", linetype = "dashed") +
+  geom_vline(xintercept = 0, colour = "red", linetype = "dashed") +
   theme_classic() +
-  scale_x_continuous(n.breaks = 10) +
+  scale_x_continuous(n.breaks = 5, labels = function(x) round(exp(x), 1)) +
   labs(x = "Mean odds ratio (95% credible intervals)", y = NULL)
 
 plot_odds
