@@ -1,3 +1,0 @@
-srun --pty --account=none --nodes=1 --ntasks=1 --mem=4G --cpus-per-task=1 --time=60 bash
-
-conda activate /users/2850244m/Documents/install_multinma/condaenv

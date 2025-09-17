@@ -1,6 +1,0 @@
-
-# 25/06/2025
-
-One trial missing from aggregate characteristics dataset on nma repo
-NCT02730377
-Add in when finalised
